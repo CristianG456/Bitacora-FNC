@@ -29,17 +29,20 @@
 
             <div>
                 <label class="block text-xs font-semibold text-gray-900 mb-3">Tipo de Caso</label>
-                <select name="tipo_documento_id" required
-                    class="w-full px-4 py-3 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900 focus:outline-none focus:bg-white focus:border-gray-300 transition appearance-none">
-                    <option value="" style="color: #b0b0b0;">Selecciona un tipo</option>
+                <select name="tipo_proceso_id" id="tipo_proceso_id" required
+                    class="w-full px-4 py-3 border border-gray-300 rounded-md bg-gray-50 text-sm">
+                    <option value="">Selecciona un tipo</option>
+                    @foreach($tipos as $tipo)
+                        <option value="{{ $tipo->id }}">{{ $tipo->nombre }}</option>
+                    @endforeach
                 </select>
             </div>
 
             <div>
                 <label class="block text-xs font-semibold text-gray-900 mb-3">Subtipo</label>
-                <select name="subtipo_documento_id" required
-                    class="w-full px-4 py-3 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900 focus:outline-none focus:bg-white focus:border-gray-300 transition appearance-none">
-                    <option value="" style="color: #b0b0b0;">Selecciona un subtipo</option>
+                <select name="subtipo_proceso_id" id="subtipo_proceso_id" required
+                    class="w-full px-4 py-3 border border-gray-300 rounded-md bg-gray-50 text-sm">
+                    <option value="">Selecciona un subtipo</option>
                 </select>
             </div>
 
@@ -125,7 +128,7 @@
             </div>
         </div>
 
-        <!-- HIDDEN: Contenedor para usuarios asignados (se muestran dinámicamente) -->
+        <!-- HIDDEN: Contenedor para usuarios asignados  -->
         <div id="usuarios-asignados" class="mt-6 space-y-6"></div>
 
     </div>
@@ -134,7 +137,7 @@
     <div class="flex justify-end gap-3 pt-8 border-t border-gray-200 mt-8">
 
         <a href="{{ route('dashboard') }}"
-           class="px-6 py-2 bg-gray-100 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-200 transition">
+        class="px-6 py-2 bg-gray-100 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-200 transition">
             Cancelar
         </a>
 
@@ -147,4 +150,26 @@
 
 </form>
 
+<script>
+const tipos = @json($tipos);
+
+document.getElementById('tipo_proceso_id').addEventListener('change', function () {
+
+    const tipoId = this.value;
+    const subtipoSelect = document.getElementById('subtipo_proceso_id');
+
+    subtipoSelect.innerHTML = '<option value="">Selecciona un subtipo</option>';
+
+    const tipo = tipos.find(t => t.id == tipoId);
+
+    if (tipo) {
+        tipo.subtipos.forEach(sub => {
+            const option = document.createElement('option');
+            option.value = sub.id;
+            option.textContent = sub.nombre;
+            subtipoSelect.appendChild(option);
+        });
+    }
+});
+</script>
 @endsection
