@@ -18,6 +18,28 @@
 <form method="POST" action="{{ route('casos.guardar') }}" class="space-y-6">
     @csrf
 
+    @if ($errors->any())
+        <div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-md">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-red-800">
+                        Por favor, corrige los siguientes errores:
+                    </h3>
+                    <ul class="mt-2 text-sm text-red-700 list-disc list-inside">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <!-- INFORMACIÓN DEL CASO -->
     <div class="bg-white px-8 py-8 rounded-lg shadow-sm border border-gray-200">
 
@@ -154,14 +176,10 @@
 const tipos = @json($tipos);
 
 document.getElementById('tipo_proceso_id').addEventListener('change', function () {
-
     const tipoId = this.value;
     const subtipoSelect = document.getElementById('subtipo_proceso_id');
-
     subtipoSelect.innerHTML = '<option value="">Selecciona un subtipo</option>';
-
     const tipo = tipos.find(t => t.id == tipoId);
-
     if (tipo) {
         tipo.subtipos.forEach(sub => {
             const option = document.createElement('option');
@@ -171,5 +189,127 @@ document.getElementById('tipo_proceso_id').addEventListener('change', function (
         });
     }
 });
+
+// Búsqueda de Usuarios
+const searchInput = document.getElementById('buscar_usuario');
+const container = document.getElementById('usuarios-container');
+const asignadosContainer = document.getElementById('usuarios-asignados');
+let searchTimeout;
+
+// Crear dropdown de resultados
+const resultsDropdown = document.createElement('div');
+resultsDropdown.className = 'absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg hidden max-h-60 overflow-y-auto';
+searchInput.parentNode.appendChild(resultsDropdown);
+
+searchInput.addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    const query = this.value;
+    
+    if (query.length < 2) {
+        resultsDropdown.innerHTML = '';
+        resultsDropdown.classList.add('hidden');
+        return;
+    }
+
+    searchTimeout = setTimeout(() => {
+        fetch(`/usuarios/buscar?q=${encodeURIComponent(query)}`)
+            .then(res => res.json())
+            .then(data => {
+                resultsDropdown.innerHTML = '';
+                if (data.length > 0) {
+                    data.forEach(user => {
+                        const item = document.createElement('div');
+                        item.className = 'px-4 py-2 cursor-pointer hover:bg-gray-100 text-sm text-gray-800';
+                        item.textContent = `${user.name} (${user.email})`;
+                        item.onclick = () => addUser(user);
+                        resultsDropdown.appendChild(item);
+                    });
+                    resultsDropdown.classList.remove('hidden');
+                } else {
+                    resultsDropdown.innerHTML = '<div class="px-4 py-2 text-sm text-gray-500">No se encontraron usuarios</div>';
+                    resultsDropdown.classList.remove('hidden');
+                }
+            });
+    }, 300);
+});
+
+// Ocultar dropdown al hacer click fuera
+document.addEventListener('click', function(e) {
+    if (e.target !== searchInput && e.target !== resultsDropdown) {
+        resultsDropdown.classList.add('hidden');
+    }
+});
+
+const addedUsers = new Set();
+
+function addUser(user) {
+    if (addedUsers.has(user.id)) {
+        alert('Este usuario ya está asignado.');
+        return;
+    }
+    
+    addedUsers.add(user.id);
+    searchInput.value = '';
+    resultsDropdown.classList.add('hidden');
+    
+    // Ocultar mensaje de vacío
+    container.classList.add('hidden');
+    
+    const userBlock = document.createElement('div');
+    userBlock.className = 'bg-gray-50 border border-gray-200 rounded-lg p-5 mb-4 relative';
+    userBlock.id = `user-block-${user.id}`;
+    
+    userBlock.innerHTML = `
+        <input type="hidden" name="usuarios[]" value="${user.id}">
+        <div class="flex justify-between items-start mb-4">
+            <div>
+                <h3 class="text-sm font-bold text-gray-900">${user.name}</h3>
+                <p class="text-xs text-gray-500">${user.email}</p>
+            </div>
+            <button type="button" onclick="removeUser(${user.id})" class="text-red-500 hover:text-red-700 text-xs font-semibold transition">
+                Eliminar
+            </button>
+        </div>
+        
+        <div class="border-t border-gray-200 pt-4 mt-2">
+            <div class="flex justify-between items-center mb-2">
+                <label class="block text-xs font-semibold text-gray-700">Tareas para este usuario</label>
+                <button type="button" onclick="addTask(${user.id})" class="text-xs text-blue-600 hover:text-blue-800 font-semibold transition">+ Agregar Tarea</button>
+            </div>
+            <div id="tasks-container-${user.id}" class="space-y-3">
+                <div class="flex gap-2 items-start task-item">
+                    <textarea name="tareas[${user.id}][]" rows="1" required placeholder="Describe la tarea..." class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 transition resize-none"></textarea>
+                    <button type="button" onclick="this.parentElement.remove()" class="mt-2 text-gray-400 hover:text-red-500">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    asignadosContainer.appendChild(userBlock);
+}
+
+function removeUser(userId) {
+    addedUsers.delete(userId);
+    document.getElementById(`user-block-${userId}`).remove();
+    
+    if (addedUsers.size === 0) {
+        container.classList.remove('hidden');
+    }
+}
+
+function addTask(userId) {
+    const tasksContainer = document.getElementById(`tasks-container-${userId}`);
+    const taskDiv = document.createElement('div');
+    taskDiv.className = 'flex gap-2 items-start task-item';
+    taskDiv.innerHTML = `
+        <textarea name="tareas[${userId}][]" rows="1" required placeholder="Describe la tarea..." class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 transition resize-none"></textarea>
+        <button type="button" onclick="this.parentElement.remove()" class="mt-2 text-gray-400 hover:text-red-500">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+    `;
+    tasksContainer.appendChild(taskDiv);
+}
 </script>
 @endsection

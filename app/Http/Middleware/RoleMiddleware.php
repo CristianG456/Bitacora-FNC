@@ -4,28 +4,44 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Auth;
-
-
+use Symfony\Component\HttpFoundation\Response;
 
 class RoleMiddleware
 {
     /**
-     * Handle an incoming request.
+     * Verifica que el usuario autenticado tenga alguno de los roles permitidos.
+     *
+     * Uso en rutas: ->middleware('role:Administrador,Juridica')
      *
      * @param  Closure(Request): (Response)  $next
      */
-    public function handle($request, Closure $next, ...$roles)
-        {
-            if (!Auth::check()) {
-                return redirect('/login');
-            }
-
-            if (!in_array(Auth::user()->rol, $roles)) {
-                abort(403, 'No autorizado');
-            }
-
-            return $next($request);
+    public function handle(Request $request, Closure $next, string ...$roles): Response
+    {
+        // 1. Verificar autenticación
+        if (!Auth::check()) {
+            return redirect()->route('login')
+                ->with('error', 'Debes iniciar sesión para continuar.');
         }
+
+        $user = Auth::user();
+
+        // 2. Verificar que el usuario esté activo
+        if (!$user->activo) {
+            Auth::logout();
+            return redirect()->route('login')
+                ->with('error', 'Tu cuenta ha sido desactivada. Contacta al administrador.');
+        }
+
+        // 3. Verificar rol (si no se pasan roles, sólo se valida auth)
+        if (!empty($roles)) {
+            $rolUsuario = $user->role?->nombre;
+
+            if (!in_array($rolUsuario, $roles)) {
+                abort(403, 'No tienes permiso para acceder a esta sección.');
+            }
+        }
+
+        return $next($request);
+    }
 }
