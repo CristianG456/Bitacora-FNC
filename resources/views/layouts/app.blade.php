@@ -494,7 +494,7 @@
             Dashboard
         </a>
 
-        <a href="#" class="nav-item {{ request()->routeIs('casos.*') && !request()->routeIs('casos.crear') ? 'active' : '' }}">
+        <a href="{{ route('casos.index') }}" class="nav-item {{ request()->routeIs('casos.*') && !request()->routeIs('casos.crear') ? 'active' : '' }}">
             <i data-lucide="folder-open" style="width:18px;height:18px;"></i>
             Casos
         </a>

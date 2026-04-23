@@ -29,11 +29,17 @@ Route::middleware(['auth'])->group(function () {
 
     // ─── CASOS ────────────────────────────────────────────────────
 
+    // Listado de casos
+    Route::get('/casos', [CasoController::class, 'index'])->name('casos.index');
+
     // Solo Administrador y Jurídica pueden crear casos
     Route::middleware(['role:Administrador,Juridica'])->group(function () {
         Route::get('/casos/crear', [CasoController::class, 'crear'])->name('casos.crear');
         Route::post('/casos', [CasoController::class, 'guardar'])->name('casos.guardar');
     });
+
+    // Detalles del caso (Debe ir DESPUÉS de casos/crear para evitar 404)
+    Route::get('/casos/{caso}', [CasoController::class, 'show'])->name('casos.show');
 
     // ─── TAREAS (dentro de un caso) ───────────────────────────────
 

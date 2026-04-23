@@ -13,6 +13,62 @@ use Illuminate\Support\Facades\DB;
 
 class CasoController extends Controller
 {
+    public function index(Request $request)
+    {
+        $user = Auth::user();
+        $esAdmin = $user->tieneAlgunRol(['Administrador', 'Juridica']);
+
+        $query = $esAdmin
+            ? Caso::query()
+            : Caso::whereHas('usuarios', fn($q) => $q->where('users.id', $user->id)->where('activo', true));
+
+        // Búsqueda
+        if ($search = $request->input('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('radicado', 'like', "%{$search}%")
+                  ->orWhere('descripcion', 'like', "%{$search}%")
+                  ->orWhereHas('solicitante', function ($q2) use ($search) {
+                      $q2->where('nombre', 'like', "%{$search}%")
+                         ->orWhere('documento', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        // Filtro por estado
+        $estadoFiltro = $request->input('estado', 'Todos');
+        if ($estadoFiltro !== 'Todos') {
+            $query->where('estado', $estadoFiltro);
+        }
+
+        $casos = $query->with(['tipo', 'usuarios'])->latest()->paginate(10);
+
+        return view('casos.index', compact('casos', 'search', 'estadoFiltro', 'esAdmin'));
+    }
+
+    public function show(Caso $caso)
+    {
+        $user = Auth::user();
+        $esAdmin = $user->tieneAlgunRol(['Administrador', 'Juridica']);
+
+        // Autorización
+        if (!$esAdmin) {
+            $asignado = $caso->usuarios()->where('users.id', $user->id)->wherePivot('activo', true)->exists();
+            if (!$asignado) {
+                abort(403, 'No tienes acceso a este caso.');
+            }
+        }
+
+        $caso->load([
+            'tipo', 'subtipo', 'solicitante',
+            'usuarios' => fn($q) => $q->wherePivot('activo', true),
+            'tareas' => fn($q) => $q->with('observaciones.autor'),
+            'bitacoras' => fn($q) => $q->with('usuario')->latest(),
+            'mensajes' => fn($q) => $q->with('remitente')->oldest()
+        ]);
+
+        return view('casos.show', compact('caso', 'esAdmin'));
+    }
+
     public function crear()
     {
         $tipos = TipoProceso::with('subtipos')->get();
@@ -93,7 +149,7 @@ class CasoController extends Controller
             return $caso;
         });
 
-        return redirect()->route('tareas.index', $caso->id)
+        return redirect()->route('casos.show', $caso->id)
             ->with('success', "Caso {$caso->radicado} creado correctamente.");
     }
 }
