@@ -133,9 +133,11 @@
         <span class="hidden md:inline">|</span>
         <span class="hidden md:inline">Administradores: {{ \App\Models\User::whereHas('role', fn($q) => $q->where('nombre', 'Administrador'))->count() }}</span>
         <span class="hidden md:inline">|</span>
-        <span class="hidden md:inline">Usuarios Principales: {{ \App\Models\User::whereHas('role', fn($q) => $q->where('nombre', 'Usuario Principal'))->count() }}</span>
+        <span class="hidden md:inline">Jurídica: {{ \App\Models\User::whereHas('role', fn($q) => $q->where('nombre', 'Juridica'))->count() }}</span>
         <span class="hidden md:inline">|</span>
         <span class="hidden md:inline">Usuarios: {{ \App\Models\User::whereHas('role', fn($q) => $q->where('nombre', 'Usuario'))->count() }}</span>
+        <span class="hidden md:inline">|</span>
+        <span class="hidden md:inline">Consultores: {{ \App\Models\User::whereHas('role', fn($q) => $q->where('nombre', 'Consultor'))->count() }}</span>
     </div>
     <div>
         {{ $usuarios->links() }}
