@@ -1,0 +1,101 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use Illuminate\Http\Request;
+
+class UserController extends Controller
+{
+    public function index(Request $request)
+    {
+        $query = User::with('role');
+
+        if ($search = $request->input('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('area', 'like', "%{$search}%");
+            });
+        }
+
+        $estado = $request->input('estado', 'Todos');
+        if ($estado !== 'Todos') {
+            $query->where('activo', $estado === 'Activos' ? 1 : 0);
+        }
+
+        $usuarios = $query->orderBy('name')->paginate(10);
+
+        return view('usuarios.index', compact('usuarios', 'search', 'estado'));
+    }
+
+    public function crear()
+    {
+        $roles = \App\Models\Rol::all();
+        return view('usuarios.crear', compact('roles'));
+    }
+
+    public function guardar(\App\Http\Requests\StoreUserRequest $request)
+    {
+        $data = $request->validated();
+        $data['password'] = bcrypt($data['password']);
+        $data['activo'] = $request->has('activo');
+
+        User::create($data);
+
+        return redirect()->route('usuarios.index')
+            ->with('success', 'Usuario creado correctamente.');
+    }
+
+    public function editar(User $usuario)
+    {
+        $roles = \App\Models\Rol::all();
+        return view('usuarios.editar', compact('usuario', 'roles'));
+    }
+
+    public function actualizar(\App\Http\Requests\UpdateUserRequest $request, User $usuario)
+    {
+        $data = $request->validated();
+        
+        if (!empty($data['password'])) {
+            $data['password'] = bcrypt($data['password']);
+        } else {
+            unset($data['password']);
+        }
+        
+        $data['activo'] = $request->has('activo');
+
+        $usuario->update($data);
+
+        return redirect()->route('usuarios.index')
+            ->with('success', 'Usuario actualizado correctamente.');
+    }
+
+    public function cambiarEstado(Request $request, User $usuario)
+    {
+        $usuario->update([
+            'activo' => !$usuario->activo
+        ]);
+
+        return redirect()->back()
+            ->with('success', 'Estado del usuario actualizado correctamente.');
+    }
+
+    public function buscar(Request $request)
+    {
+        $query = $request->input('q');
+
+        if (!$query) {
+            return response()->json([]);
+        }
+
+        $usuarios = User::where('name', 'LIKE', "%{$query}%")
+            ->orWhere('email', 'LIKE', "%{$query}%")
+            ->select('id', 'name', 'email')
+            ->where('activo', true)
+            ->limit(10)
+            ->get();
+
+        return response()->json($usuarios);
+    }
+}
