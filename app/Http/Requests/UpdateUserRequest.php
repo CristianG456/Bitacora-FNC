@@ -15,7 +15,7 @@ class UpdateUserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name'     => ['required', 'string', 'max:255'],
+            'name'     => ['required', 'string', 'max:255', 'regex:/^[a-zA-Z\sñÑáéíóúÁÉÍÓÚ]+$/'],
             'email'    => [
                 'required',
                 'string',
@@ -34,6 +34,7 @@ class UpdateUserRequest extends FormRequest
     {
         return [
             'name.required'      => 'El nombre es obligatorio.',
+            'name.regex'         => 'El nombre solo puede contener letras y espacios.',
             'email.required'     => 'El correo electrónico es obligatorio.',
             'email.email'        => 'El formato del correo es inválido.',
             'email.unique'       => 'Este correo ya está registrado en el sistema.',

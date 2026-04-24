@@ -91,6 +91,8 @@
                 <label class="block text-xs font-semibold text-gray-900 mb-3">Nombre del Solicitante</label>
                 <input type="text" name="nombre_solicitante" required
                     placeholder="Nombre completo"
+                    pattern="[a-zA-Z\sñÑáéíóúÁÉÍÓÚ]+" title="Solo se permiten letras y espacios"
+                    oninput="this.value = this.value.replace(/[^a-zA-Z\sñÑáéíóúÁÉÍÓÚ]/g, '')"
                     class="w-full px-4 py-3 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-gray-300 transition">
             </div>
 
@@ -98,6 +100,8 @@
                 <label class="block text-xs font-semibold text-gray-900 mb-3">Documento del Solicitante</label>
                 <input type="text" name="documento_solicitante" required
                     placeholder="Número de documento"
+                    pattern="[0-9]+" title="Solo se permiten números"
+                    oninput="this.value = this.value.replace(/[^0-9]/g, '')"
                     class="w-full px-4 py-3 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-gray-300 transition">
             </div>
 
