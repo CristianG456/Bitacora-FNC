@@ -24,8 +24,18 @@ Route::middleware(['auth'])->group(function () {
     // Dashboard (todos los roles autenticados)
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    // Usuarios API
+    // Usuarios API (búsqueda)
     Route::get('/usuarios/buscar', [UserController::class, 'buscar'])->name('usuarios.buscar');
+
+    // ─── USUARIOS (Solo Administrador) ────────────────────────────
+    Route::middleware(['role:Administrador'])->group(function () {
+        Route::get('/usuarios', [UserController::class, 'index'])->name('usuarios.index');
+        Route::get('/usuarios/crear', [UserController::class, 'crear'])->name('usuarios.crear');
+        Route::post('/usuarios', [UserController::class, 'guardar'])->name('usuarios.guardar');
+        Route::get('/usuarios/{usuario}/editar', [UserController::class, 'editar'])->name('usuarios.editar');
+        Route::put('/usuarios/{usuario}', [UserController::class, 'actualizar'])->name('usuarios.actualizar');
+        Route::post('/usuarios/{usuario}/estado', [UserController::class, 'cambiarEstado'])->name('usuarios.estado');
+    });
 
     // ─── CASOS ────────────────────────────────────────────────────
 
@@ -40,6 +50,16 @@ Route::middleware(['auth'])->group(function () {
 
     // Detalles del caso (Debe ir DESPUÉS de casos/crear para evitar 404)
     Route::get('/casos/{caso}', [CasoController::class, 'show'])->name('casos.show');
+
+    // Chat del caso
+    Route::post('/casos/{caso}/mensajes', [CasoController::class, 'enviarMensaje'])->name('casos.mensajes');
+
+    // Gestión de usuarios asignados al caso
+    Route::middleware(['role:Administrador,Juridica'])->group(function () {
+        Route::post('/casos/{caso}/usuarios', [CasoController::class, 'asignarUsuario'])->name('casos.usuarios.asignar');
+        Route::delete('/casos/{caso}/usuarios/{usuario}', [CasoController::class, 'removerUsuario'])->name('casos.usuarios.remover');
+        Route::post('/casos/{caso}/usuarios/{usuario}/reemplazar', [CasoController::class, 'reemplazarUsuario'])->name('casos.usuarios.reemplazar');
+    });
 
     // ─── TAREAS (dentro de un caso) ───────────────────────────────
 

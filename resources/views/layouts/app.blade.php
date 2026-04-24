@@ -517,7 +517,7 @@
         </a>
 
         @if(auth()->user()?->tieneAlgunRol(['Administrador']))
-        <a href="#" class="nav-item">
+        <a href="{{ route('usuarios.index') }}" class="nav-item {{ request()->routeIs('usuarios.*') ? 'active' : '' }}">
             <i data-lucide="users" style="width:18px;height:18px;"></i>
             Usuarios
         </a>

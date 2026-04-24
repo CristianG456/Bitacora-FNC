@@ -56,11 +56,11 @@
             <div class="flex items-center gap-4 text-sm mt-6 pt-4 border-t border-gray-100">
                 <div class="flex items-center gap-2 text-gray-500">
                     <i data-lucide="calendar" style="width:16px;height:16px;"></i>
-                    {{ $caso->created_at->translatedFormat('d de F de Y') }}
+                    {{ $caso->created_at->translatedFormat('d \d\e F \d\e Y') }}
                 </div>
                 @if($caso->link_drive)
                 <a href="{{ $caso->link_drive }}" target="_blank" class="flex items-center gap-1 text-red-600 hover:text-red-800 font-medium transition">
-                    Ver documento <i data-lucide="external-link" style="width:14px;height:14px;"></i>
+                    Abrir link de Drive <i data-lucide="external-link" style="width:14px;height:14px;"></i>
                 </a>
                 @endif
             </div>
@@ -79,7 +79,7 @@
                     <p class="text-xs text-gray-500 mt-1">Progreso: {{ $progreso }}% ({{ $tareasCompletadas }}/{{ $totalTareas }} completados)</p>
                 </div>
                 @if($esAdmin)
-                <button type="button" class="btn-secondary text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300">
+                <button type="button" onclick="document.getElementById('modal-agregar-usuario').classList.remove('hidden')" class="btn-secondary text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300">
                     <i data-lucide="user-plus" style="width:14px;height:14px;"></i> Agregar Usuario
                 </button>
                 @endif
@@ -122,12 +122,16 @@
                             {{ $estadoUsu }}
                         </span>
                         @if($esAdmin)
-                        <button type="button" class="text-gray-400 hover:text-gray-600 p-1">
+                        <button type="button" onclick="abrirModalReemplazo({{ $user->id }}, '{{ addslashes($user->name) }}')" class="text-gray-400 hover:text-blue-600 p-1 bg-gray-50 hover:bg-blue-50 rounded" title="Reemplazar Usuario">
                             <i data-lucide="refresh-cw" style="width:16px;height:16px;"></i>
                         </button>
-                        <button type="button" class="text-red-400 hover:text-red-600 p-1 bg-red-50 rounded">
-                            <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
-                        </button>
+                        <form action="{{ route('casos.usuarios.remover', [$caso->id, $user->id]) }}" method="POST" class="inline" onsubmit="return confirm('¿Seguro que deseas desvincular a este usuario del caso?');">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="text-red-400 hover:text-red-600 p-1 bg-red-50 rounded" title="Remover Usuario">
+                                <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
+                            </button>
+                        </form>
                         @endif
                     </div>
                 </div>
@@ -175,16 +179,16 @@
             
             <!-- TABS -->
             <div class="flex border-b border-gray-200 bg-gray-50 p-2 gap-1">
-                <button class="flex-1 py-2 text-sm font-bold text-gray-900 bg-white shadow-sm rounded-md flex items-center justify-center gap-2">
+                <button onclick="switchTab('bitacora')" id="btn-tab-bitacora" class="flex-1 py-2 text-sm font-bold text-gray-900 bg-white shadow-sm rounded-md flex items-center justify-center gap-2 transition">
                     <i data-lucide="file-text" style="width:16px;height:16px;"></i> Bitácora
                 </button>
-                <button class="flex-1 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md flex items-center justify-center gap-2 transition">
+                <button onclick="switchTab('mensajes')" id="btn-tab-mensajes" class="flex-1 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md flex items-center justify-center gap-2 transition">
                     <i data-lucide="message-square" style="width:16px;height:16px;"></i> Mensajes
                 </button>
             </div>
 
             <!-- CONTENIDO BITÁCORA -->
-            <div class="flex-1 overflow-y-auto p-4 space-y-6 relative">
+            <div id="content-bitacora" class="flex-1 overflow-y-auto p-4 space-y-6 relative block">
                 <div class="absolute left-8 top-0 bottom-0 w-px bg-gray-200"></div>
 
                 @forelse($caso->bitacoras as $bitacora)
@@ -217,6 +221,36 @@
                 <p class="text-sm text-gray-500 text-center py-4">No hay eventos en la bitácora.</p>
                 @endforelse
 
+            </div>
+
+            <!-- CONTENIDO MENSAJES -->
+            <div id="content-mensajes" class="flex-1 overflow-y-auto p-4 flex-col hidden bg-white relative">
+                <div class="flex-1 space-y-4 overflow-y-auto mb-4 pr-2 flex flex-col" id="chat-container">
+                    @forelse($caso->mensajes as $msg)
+                        @php $esMio = $msg->user_id === auth()->id(); @endphp
+                        <div class="flex flex-col {{ $esMio ? 'items-end' : 'items-start' }}">
+                            <div class="{{ $esMio ? 'bg-[#b11226] text-white' : 'bg-gray-100 text-gray-800' }} rounded-xl p-3 max-w-[85%] relative shadow-sm">
+                                <span class="block text-[11px] font-bold opacity-90 mb-1 {{ $esMio ? 'text-red-100' : 'text-gray-600' }}">
+                                    {{ $esMio ? auth()->user()->name : $msg->autor?->name }}
+                                </span>
+                                <p class="text-[13.5px] leading-relaxed">{{ $msg->mensaje }}</p>
+                            </div>
+                            <span class="text-[10px] text-gray-400 mt-1 mx-1">{{ $msg->created_at->format('d M, H:i \h') }}</span>
+                        </div>
+                    @empty
+                        <div class="h-full flex items-center justify-center text-sm text-gray-400 italic my-auto">Empieza la conversación en este caso.</div>
+                    @endforelse
+                </div>
+
+                <div class="pt-3 border-t border-gray-100 shrink-0">
+                    <form id="form-chat" action="{{ route('casos.mensajes', $caso->id) }}" method="POST" class="flex items-center gap-2">
+                        @csrf
+                        <input type="text" name="mensaje" required placeholder="Escribe un mensaje..." class="flex-1 bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-lg px-4 py-2.5 focus:outline-none focus:border-red-400 focus:bg-white transition">
+                        <button type="submit" class="bg-[#d28a96] hover:bg-[#b11226] text-white rounded-lg transition shrink-0 flex items-center justify-center w-11 h-11">
+                            <svg style="width:18px;height:18px;margin-left:-2px" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                        </button>
+                    </form>
+                </div>
             </div>
 
         </div>
@@ -262,8 +296,97 @@
     </div>
 </div>
 
+@if($esAdmin)
+<!-- MODAL AGREGAR USUARIO -->
+<div id="modal-agregar-usuario" class="fixed inset-0 z-50 hidden flex items-center justify-center">
+    <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onclick="document.getElementById('modal-agregar-usuario').classList.add('hidden')"></div>
+    
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 relative z-10 overflow-hidden transform transition-all">
+        <form action="{{ route('casos.usuarios.asignar', $caso->id) }}" method="POST">
+            @csrf
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <h3 class="text-lg font-bold text-gray-900">Agregar Usuario al Caso</h3>
+                <button type="button" onclick="document.getElementById('modal-agregar-usuario').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 transition p-1 border border-gray-200 rounded-md">
+                    <i data-lucide="x" style="width:16px;height:16px;"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-900 mb-2">Seleccionar Usuario</label>
+                    <div class="relative mb-2">
+                        <i data-lucide="search" class="absolute left-3 top-2.5 text-gray-400" style="width:14px;height:14px;"></i>
+                        <input type="text" placeholder="Buscar por nombre o rol..." onkeyup="filtrarUsuarios(this, 'select-agregar')" class="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:border-red-400">
+                    </div>
+                    <select id="select-agregar" name="user_id" required size="6" class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm focus:bg-white focus:border-red-500 outline-none transition">
+                        @php
+                            $usuariosAsignados = $caso->usuarios->pluck('id')->toArray();
+                            $usuariosDisponibles = \App\Models\User::where('activo', true)
+                                ->whereNotIn('id', $usuariosAsignados)
+                                ->orderBy('name')
+                                ->get();
+                        @endphp
+                        @foreach($usuariosDisponibles as $ud)
+                            <option value="{{ $ud->id }}" class="py-1.5 px-2 border-b border-gray-100 last:border-0 hover:bg-gray-100 cursor-pointer rounded">{{ $ud->name }} ({{ $ud->role?->nombre }})</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
+                <button type="button" onclick="document.getElementById('modal-agregar-usuario').classList.add('hidden')" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-100 transition">Cancelar</button>
+                <button type="submit" class="btn-primary">Asignar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL REEMPLAZAR USUARIO -->
+<div id="modal-reemplazar-usuario" class="fixed inset-0 z-50 hidden flex items-center justify-center">
+    <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onclick="document.getElementById('modal-reemplazar-usuario').classList.add('hidden')"></div>
+    
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 relative z-10 overflow-hidden transform transition-all">
+        <form id="form-reemplazar-usuario" method="POST">
+            @csrf
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <h3 class="text-lg font-bold text-gray-900">Reemplazar Usuario</h3>
+                <button type="button" onclick="document.getElementById('modal-reemplazar-usuario').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 transition p-1 border border-gray-200 rounded-md">
+                    <i data-lucide="x" style="width:16px;height:16px;"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                <p class="text-sm text-gray-600 mb-2">Vas a reemplazar a <strong id="nombre-reemplazo"></strong>. Todas sus tareas en este caso serán transferidas al nuevo usuario.</p>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-900 mb-2">Seleccionar Nuevo Usuario</label>
+                    <div class="relative mb-2">
+                        <i data-lucide="search" class="absolute left-3 top-2.5 text-gray-400" style="width:14px;height:14px;"></i>
+                        <input type="text" placeholder="Buscar por nombre o rol..." onkeyup="filtrarUsuarios(this, 'select-reemplazo')" class="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:border-blue-400">
+                    </div>
+                    <select id="select-reemplazo" name="nuevo_user_id" required size="6" class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm focus:bg-white focus:border-blue-500 outline-none transition">
+                        @foreach($usuariosDisponibles as $ud)
+                            <option value="{{ $ud->id }}" class="py-1.5 px-2 border-b border-gray-100 last:border-0 hover:bg-gray-100 cursor-pointer rounded">{{ $ud->name }} ({{ $ud->role?->nombre }})</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
+                <button type="button" onclick="document.getElementById('modal-reemplazar-usuario').classList.add('hidden')" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-100 transition">Cancelar</button>
+                <button type="submit" class="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-md hover:bg-blue-700 transition">Confirmar Reemplazo</button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
+
 @push('scripts')
 <script>
+    function abrirModalReemplazo(usuarioId, nombre) {
+        document.getElementById('nombre-reemplazo').textContent = nombre;
+        document.getElementById('form-reemplazar-usuario').action = `/casos/{{ $caso->id }}/usuarios/${usuarioId}/reemplazar`;
+        document.getElementById('modal-reemplazar-usuario').classList.remove('hidden');
+    }
     function mostrarDetalleEvento(usuario, tipo, fecha, desc) {
         document.getElementById('modal-user').textContent = usuario;
         document.getElementById('modal-tipo').textContent = tipo;
@@ -277,6 +400,132 @@
     function cerrarModal() {
         const modal = document.getElementById('modal-evento');
         modal.classList.add('hidden');
+    }
+
+    function switchTab(tab) {
+        const btnBitacora = document.getElementById('btn-tab-bitacora');
+        const btnMensajes = document.getElementById('btn-tab-mensajes');
+        const contentBitacora = document.getElementById('content-bitacora');
+        const contentMensajes = document.getElementById('content-mensajes');
+
+        if (tab === 'bitacora') {
+            // Activar botón bitacora
+            btnBitacora.className = 'flex-1 py-2 text-sm font-bold text-gray-900 bg-white shadow-sm rounded-md flex items-center justify-center gap-2 transition';
+            btnMensajes.className = 'flex-1 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md flex items-center justify-center gap-2 transition';
+            
+            // Mostrar contenido
+            contentBitacora.classList.remove('hidden');
+            contentBitacora.classList.add('block');
+            contentMensajes.classList.add('hidden');
+            contentMensajes.classList.remove('flex');
+        } else {
+            // Activar botón mensajes
+            btnMensajes.className = 'flex-1 py-2 text-sm font-bold text-gray-900 bg-white shadow-sm rounded-md flex items-center justify-center gap-2 transition';
+            btnBitacora.className = 'flex-1 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md flex items-center justify-center gap-2 transition';
+            
+            // Mostrar contenido
+            contentBitacora.classList.add('hidden');
+            contentBitacora.classList.remove('block');
+            contentMensajes.classList.remove('hidden');
+            contentMensajes.classList.add('flex');
+
+            // Scroll down
+            const chatContainer = document.getElementById('chat-container');
+            if(chatContainer) {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        }
+    }
+
+    // Auto-open chat if coming from redirect
+    @if(session('tab') === 'mensajes')
+        switchTab('mensajes');
+    @endif
+
+    // Filtrar usuarios en los select de los modales
+    function filtrarUsuarios(input, selectId) {
+        const filter = input.value.toLowerCase();
+        const select = document.getElementById(selectId);
+        const options = select.getElementsByTagName('option');
+        
+        let hasVisibleOptions = false;
+
+        for (let i = 0; i < options.length; i++) {
+            if (options[i].value === "") continue;
+            
+            const txtValue = options[i].textContent || options[i].innerText;
+            if (txtValue.toLowerCase().indexOf(filter) > -1) {
+                options[i].style.display = "";
+                hasVisibleOptions = true;
+            } else {
+                options[i].style.display = "none";
+            }
+        }
+    }
+
+    // Enviar mensaje por AJAX
+    const formChat = document.getElementById('form-chat');
+    if (formChat) {
+        formChat.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const input = this.querySelector('input[name="mensaje"]');
+            const mensaje = input.value.trim();
+            const btn = this.querySelector('button[type="submit"]');
+            
+            if (!mensaje) return;
+            
+            // Deshabilitar botón
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+
+            fetch(this.action, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ mensaje: mensaje })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const chatContainer = document.getElementById('chat-container');
+                    
+                    // Quitar mensaje de "Empieza la conversación" si existe
+                    const emptyMsg = chatContainer.querySelector('.italic');
+                    if(emptyMsg) emptyMsg.remove();
+
+                    // Crear y agregar nueva burbuja
+                    const div = document.createElement('div');
+                    div.className = 'flex flex-col items-end';
+                    div.innerHTML = `
+                        <div class="bg-[#b11226] text-white rounded-xl p-3 max-w-[85%] relative shadow-sm">
+                            <span class="block text-[11px] font-bold opacity-90 mb-1 text-red-100">
+                                Tú
+                            </span>
+                            <p class="text-[13.5px] leading-relaxed">${data.mensaje}</p>
+                        </div>
+                        <span class="text-[10px] text-gray-400 mt-1 mx-1">${data.fecha}</span>
+                    `;
+                    chatContainer.appendChild(div);
+                    
+                    // Limpiar input y bajar scroll
+                    input.value = '';
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                }
+            })
+            .catch(error => {
+                console.error('Error enviando mensaje:', error);
+                alert('Ocurrió un error al enviar el mensaje.');
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                input.focus();
+            });
+        });
     }
 </script>
 @endpush
