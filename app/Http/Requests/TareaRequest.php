@@ -19,19 +19,9 @@ class TareaRequest extends FormRequest
         return [
             'user_id'     => ['required', 'exists:users,id'],
             'descripcion' => ['required', 'string', 'min:10', 'max:2000'],
-            'estado'      => ['required', 'in:Pendiente,En proceso,Completada'],
             'orden'       => ['nullable', 'integer', 'min:1'],
             'fecha_inicio' => ['nullable', 'date'],
             'fecha_fin'    => ['nullable', 'date', 'after_or_equal:fecha_inicio'],
-            // Observación obligatoria al crear / al cambiar estado a Completada
-            'observacion' => [
-                $this->isMethod('POST') || $this->input('estado') === 'Completada'
-                    ? 'required'
-                    : 'nullable',
-                'string',
-                'min:10',
-                'max:2000',
-            ],
         ];
     }
 
@@ -50,9 +40,6 @@ class TareaRequest extends FormRequest
             'fecha_inicio.date'     => 'La fecha de inicio no es válida.',
             'fecha_fin.date'        => 'La fecha de finalización no es válida.',
             'fecha_fin.after_or_equal' => 'La fecha de fin debe ser igual o posterior a la fecha de inicio.',
-            'observacion.required'  => 'La observación es obligatoria al crear una tarea o al marcarla como Completada.',
-            'observacion.min'       => 'La observación debe tener al menos 10 caracteres.',
-            'observacion.max'       => 'La observación no puede superar 2000 caracteres.',
         ];
     }
 }

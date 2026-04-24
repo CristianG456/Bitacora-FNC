@@ -2,6 +2,10 @@
 
 @section('title', 'Dashboard - Sistema Jurídico')
 
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('css/dashboard.css') }}">
+@endpush
+
 @section('content')
 
 {{-- Encabezado de página --}}
@@ -10,71 +14,67 @@
     <p>Vista general de casos jurídicos</p>
 </div>
 
-{{-- ══════════════════════════════════════════════════════════════
-     TARJETAS DE ESTADÍSTICAS
-══════════════════════════════════════════════════════════════ --}}
-<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+{{-- TARJETAS DE ESTADÍSTICAS --}}
+<div class="dashboard-stats-grid">
 
     {{-- Total Casos --}}
     <div class="stat-card">
         <div>
-            <p style="font-size:12px;color:#6b7280;font-weight:500;margin:0 0 6px;">Total Casos</p>
-            <h2 style="font-size:28px;font-weight:700;color:#111827;margin:0;">{{ $totalCasos }}</h2>
+            <p class="stat-label">Total Casos</p>
+            <h2 class="stat-value total">{{ $totalCasos }}</h2>
         </div>
-        <div class="stat-icon" style="background:#f3f4f6;">
-            <i data-lucide="folder" style="width:22px;height:22px;color:#6b7280;"></i>
+        <div class="stat-icon stat-icon-wrapper">
+            <i data-lucide="folder" class="stat-icon-svg total"></i>
         </div>
     </div>
 
     {{-- En Proceso --}}
     <div class="stat-card">
         <div>
-            <p style="font-size:12px;color:#6b7280;font-weight:500;margin:0 0 6px;">En Proceso</p>
-            <h2 style="font-size:28px;font-weight:700;color:#2563eb;margin:0;">{{ $enProceso }}</h2>
+            <p class="stat-label">En Proceso</p>
+            <h2 class="stat-value proceso">{{ $enProceso }}</h2>
         </div>
-        <div class="stat-icon" style="background:#dbeafe;">
-            <i data-lucide="clock" style="width:22px;height:22px;color:#2563eb;"></i>
+        <div class="stat-icon stat-icon-wrapper proceso">
+            <i data-lucide="clock" class="stat-icon-svg proceso"></i>
         </div>
     </div>
 
     {{-- Completados --}}
     <div class="stat-card">
         <div>
-            <p style="font-size:12px;color:#6b7280;font-weight:500;margin:0 0 6px;">Completados</p>
-            <h2 style="font-size:28px;font-weight:700;color:#16a34a;margin:0;">{{ $completados }}</h2>
+            <p class="stat-label">Completados</p>
+            <h2 class="stat-value completado">{{ $completados }}</h2>
         </div>
-        <div class="stat-icon" style="background:#dcfce7;">
-            <i data-lucide="check-circle" style="width:22px;height:22px;color:#16a34a;"></i>
+        <div class="stat-icon stat-icon-wrapper completado">
+            <i data-lucide="check-circle" class="stat-icon-svg completado"></i>
         </div>
     </div>
 
     {{-- Finalizados --}}
     <div class="stat-card">
         <div>
-            <p style="font-size:12px;color:#6b7280;font-weight:500;margin:0 0 6px;">Finalizados</p>
-            <h2 style="font-size:28px;font-weight:700;color:#b11226;margin:0;">{{ $finalizados }}</h2>
+            <p class="stat-label">Finalizados</p>
+            <h2 class="stat-value finalizado">{{ $finalizados }}</h2>
         </div>
-        <div class="stat-icon" style="background:#fce7f3;">
-            <i data-lucide="flag" style="width:22px;height:22px;color:#b11226;"></i>
+        <div class="stat-icon stat-icon-wrapper finalizado">
+            <i data-lucide="flag" class="stat-icon-svg finalizado"></i>
         </div>
     </div>
 
 </div>
 
-{{-- ══════════════════════════════════════════════════════════════
-     FILA: TABLA DE CASOS + MIS TAREAS
-══════════════════════════════════════════════════════════════ --}}
+{{-- FILA: TABLA DE CASOS + MIS TAREAS --}}
 <div style="display: block;">
 
-    {{-- ── Casos Recientes ────────────────────────────────────── --}}
-    <div style="background:white;border-radius:14px;border:1px solid #f0f0f0;overflow:hidden;">
+        {{-- ── Casos Recientes ────────────────────────────────────── --}}
+    <div class="recent-cases-wrapper">
 
         {{-- Header tabla --}}
-        <div style="padding:18px 22px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f5f5f5;">
-            <h2 style="font-size:14px;font-weight:700;color:#111827;margin:0;">Casos Recientes</h2>
+        <div class="recent-cases-header">
+            <h2 class="recent-cases-title">Casos Recientes</h2>
             @if(auth()->user()->tieneAlgunRol(['Administrador', 'Juridica']))
-            <a href="{{ route('casos.crear') }}" class="btn-primary" style="font-size:12.5px;padding:7px 14px;">
-                <i data-lucide="plus" style="width:15px;height:15px;"></i>
+            <a href="{{ route('casos.crear') }}" class="btn-primary btn-create-sm">
+                <i data-lucide="plus" class="btn-create-icon"></i>
                 Crear Nuevo Caso
             </a>
             @endif
@@ -82,7 +82,7 @@
 
         {{-- Tabla --}}
         @if($casosRecientes->isNotEmpty())
-        <div style="overflow-x:auto;">
+        <div class="table-responsive">
             <table class="tabla-casos">
                 <thead>
                     <tr>
@@ -103,8 +103,8 @@
                         <td>
                             <span class="tipo-link">{{ $caso->tipo?->nombre ?? '—' }}</span>
                         </td>
-                        <td style="max-width:260px;">
-                            <span style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;color:#374151;">
+                        <td class="td-desc">
+                            <span class="desc-truncate">
                                 {{ $caso->descripcion }}
                             </span>
                         </td>
@@ -119,11 +119,11 @@
                             @endphp
                             <span class="badge {{ $badgeClass }}">{{ $caso->estado }}</span>
                         </td>
-                        <td style="color:#6b7280;font-size:12.5px;">
+                        <td class="td-date">
                             {{ $caso->created_at->format('d/m/Y') }}
                         </td>
                         <td>
-                            <a href="{{ route('tareas.index', $caso->id) }}" class="btn-ver">Ver</a>
+                            <a href="{{ route('casos.show', $caso->id) }}" class="btn-ver">Ver</a>
                         </td>
                     </tr>
                     @endforeach
@@ -131,11 +131,11 @@
             </table>
         </div>
         @else
-        <div style="padding:40px;text-align:center;">
-            <i data-lucide="folder-open" style="width:40px;height:40px;color:#d1d5db;margin:0 auto 12px;display:block;"></i>
-            <p style="color:#9ca3af;font-size:13.5px;margin:0;">No hay casos registrados aún.</p>
+        <div class="empty-state">
+            <i data-lucide="folder-open" class="empty-state-icon"></i>
+            <p class="empty-state-text">No hay casos registrados aún.</p>
             @if(auth()->user()->tieneAlgunRol(['Administrador', 'Juridica']))
-            <a href="{{ route('casos.crear') }}" class="btn-primary" style="margin-top:16px;display:inline-flex;">
+            <a href="{{ route('casos.crear') }}" class="btn-primary empty-state-btn">
                 Crear el primer caso
             </a>
             @endif

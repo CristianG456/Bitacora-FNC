@@ -2,6 +2,10 @@
 
 @section('title', 'Detalles del Caso - ' . $caso->radicado)
 
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('css/casos.css') }}">
+@endpush
+
 @section('content')
 
 <!-- HEADER -->
@@ -55,12 +59,12 @@
             
             <div class="flex items-center gap-4 text-sm mt-6 pt-4 border-t border-gray-100">
                 <div class="flex items-center gap-2 text-gray-500">
-                    <i data-lucide="calendar" style="width:16px;height:16px;"></i>
-                    {{ $caso->created_at->translatedFormat('d \d\e F \d\e Y') }}
+                    <i data-lucide="calendar" class="icon-md"></i>
+                    {{ \Carbon\Carbon::parse($caso->created_at)->locale('es')->translatedFormat('d \d\e F \d\e Y') }}
                 </div>
                 @if($caso->link_drive)
                 <a href="{{ $caso->link_drive }}" target="_blank" class="flex items-center gap-1 text-red-600 hover:text-red-800 font-medium transition">
-                    Abrir link de Drive <i data-lucide="external-link" style="width:14px;height:14px;"></i>
+                    Abrir link de Drive <i data-lucide="external-link" class="icon-sm"></i>
                 </a>
                 @endif
             </div>
@@ -80,13 +84,13 @@
                 </div>
                 @if($esAdmin)
                 <button type="button" onclick="document.getElementById('modal-agregar-usuario').classList.remove('hidden')" class="btn-secondary text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300">
-                    <i data-lucide="user-plus" style="width:14px;height:14px;"></i> Agregar Usuario
+                    <i data-lucide="user-plus" class="icon-sm"></i> Agregar Usuario
                 </button>
                 @endif
             </div>
 
             <div class="bg-blue-50 border border-blue-100 text-blue-700 p-3 rounded-md text-sm flex items-start gap-2 mb-4">
-                <i data-lucide="info" style="width:18px;height:18px;flex-shrink:0;margin-top:2px;"></i>
+                <i data-lucide="info" class="icon-lg info-icon"></i>
                 <p>Puedes modificar los usuarios asignados en cualquier momento. El sistema se ajusta automáticamente sin afectar el proceso.</p>
             </div>
 
@@ -104,7 +108,7 @@
                                 $completadasUsu = $tareasUsuario->where('estado', 'Completada')->count();
                             @endphp
                             <p class="text-xs text-gray-500">
-                                Asignado: {{ \Carbon\Carbon::parse($user->pivot->fecha_asignacion)->format('d de M') }} • {{ $completadasUsu }}/{{ $tareasUsuario->count() }} tareas
+                                Asignado: {{ \Carbon\Carbon::parse($user->pivot->fecha_asignacion)->locale('es')->translatedFormat('d \d\e M') }} • {{ $completadasUsu }}/{{ $tareasUsuario->count() }} tareas
                             </p>
                         </div>
                     </div>
@@ -123,13 +127,13 @@
                         </span>
                         @if($esAdmin)
                         <button type="button" onclick="abrirModalReemplazo({{ $user->id }}, '{{ addslashes($user->name) }}')" class="text-gray-400 hover:text-blue-600 p-1 bg-gray-50 hover:bg-blue-50 rounded" title="Reemplazar Usuario">
-                            <i data-lucide="refresh-cw" style="width:16px;height:16px;"></i>
+                            <i data-lucide="refresh-cw" class="icon-md"></i>
                         </button>
                         <form action="{{ route('casos.usuarios.remover', [$caso->id, $user->id]) }}" method="POST" class="inline" onsubmit="return confirm('¿Seguro que deseas desvincular a este usuario del caso?');">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="text-red-400 hover:text-red-600 p-1 bg-red-50 rounded" title="Remover Usuario">
-                                <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
+                                <i data-lucide="trash-2" class="icon-md"></i>
                             </button>
                         </form>
                         @endif
@@ -141,32 +145,71 @@
             </div>
         </div>
 
-        <!-- Observaciones / Tareas (simplificado) -->
+        <!-- Lista de Tareas -->
         <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-            <h2 class="text-base font-bold text-gray-900 mb-4">Observaciones</h2>
-            
-            <div class="space-y-4">
-                @php
-                    // Recopilar todas las observaciones de las tareas
-                    $todasObservaciones = collect();
-                    foreach($caso->tareas as $tarea) {
-                        foreach($tarea->observaciones as $obs) {
-                            $todasObservaciones->push($obs);
-                        }
-                    }
-                    $todasObservaciones = $todasObservaciones->sortByDesc('created_at');
-                @endphp
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-base font-bold text-gray-900">Lista de Tareas</h2>
+            </div>
 
-                @forelse($todasObservaciones as $obs)
-                <div class="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
-                    <div class="flex items-center justify-between mb-1">
-                        <span class="text-xs font-bold text-gray-900">{{ $obs->autor->name }}</span>
-                        <span class="text-[11px] text-gray-500">{{ $obs->created_at->format('d M, H:i \h') }}</span>
+            @if($esAdmin)
+            <div class="mb-5 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <form action="{{ route('tareas.guardar', $caso->id) }}" method="POST" class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                    @csrf
+                    <div class="flex-1 w-full">
+                        <input type="text" name="descripcion" placeholder="Descripción de la nueva tarea (mín. 10 caracteres)..." class="form-input w-full text-sm" required minlength="10" maxlength="2000">
                     </div>
-                    <p class="text-sm text-gray-600">{{ $obs->contenido }}</p>
+                    <div class="w-full sm:w-56">
+                        <select name="user_id" class="form-select w-full text-sm" required>
+                            <option value="">Asignar a...</option>
+                            @php
+                                $usuariosAsignados = $caso->usuarios()->wherePivot('activo', true)->get();
+                                $listaUsuarios = $usuariosAsignados->isEmpty() ? \App\Models\User::where('activo', true)->orderBy('name')->get() : $usuariosAsignados;
+                            @endphp
+                            @foreach($listaUsuarios as $u)
+                                <option value="{{ $u->id }}">{{ $u->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-secondary w-full sm:w-auto text-xs text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 py-2 px-4 whitespace-nowrap justify-center">
+                        <i data-lucide="plus" class="icon-sm"></i> Agregar
+                    </button>
+                </form>
+                @if($errors->has('descripcion') || $errors->has('user_id'))
+                <div class="mt-2">
+                    @error('descripcion') <p class="text-xs text-red-500">{{ $message }}</p> @enderror
+                    @error('user_id') <p class="text-xs text-red-500">{{ $message }}</p> @enderror
+                </div>
+                @endif
+            </div>
+            @endif
+            
+            <div class="space-y-3">
+                @forelse($caso->tareas as $tarea)
+                <div class="border border-gray-200 rounded-lg p-4 flex items-center justify-between transition hover:border-gray-300">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-xs font-bold text-gray-400">#{{ $tarea->orden ?? $loop->iteration }}</span>
+                            <h3 class="text-sm font-bold text-gray-900">{{ $tarea->descripcion }}</h3>
+                        </div>
+                        <p class="text-xs text-gray-500">
+                            Asignado a: <strong class="text-gray-700">{{ $tarea->usuario->name ?? 'Sin asignar' }}</strong>
+                        </p>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 ml-4">
+                        @if($esAdmin)
+                        <form action="{{ route('tareas.eliminar', [$caso->id, $tarea->id]) }}" method="POST" class="inline" onsubmit="return confirm('¿Seguro que deseas eliminar esta tarea?');">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="text-gray-400 hover:text-red-600 p-1.5 bg-gray-50 hover:bg-red-50 rounded transition" title="Eliminar Tarea">
+                                <i data-lucide="trash-2" class="icon-md"></i>
+                            </button>
+                        </form>
+                        @endif
+                    </div>
                 </div>
                 @empty
-                <p class="text-sm text-gray-500 text-center py-4">No hay observaciones registradas.</p>
+                <p class="text-sm text-gray-500 text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">No hay tareas creadas para este caso.</p>
                 @endforelse
             </div>
         </div>
@@ -175,15 +218,15 @@
 
     <!-- COLUMNA DERECHA (TABS BITÁCORA / MENSAJES) -->
     <div class="lg:col-span-1">
-        <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex flex-col" style="height: calc(100vh - 140px); position: sticky; top: 80px;">
+        <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex flex-col sticky-sidebar">
             
             <!-- TABS -->
             <div class="flex border-b border-gray-200 bg-gray-50 p-2 gap-1">
                 <button onclick="switchTab('bitacora')" id="btn-tab-bitacora" class="flex-1 py-2 text-sm font-bold text-gray-900 bg-white shadow-sm rounded-md flex items-center justify-center gap-2 transition">
-                    <i data-lucide="file-text" style="width:16px;height:16px;"></i> Bitácora
+                    <i data-lucide="file-text" class="icon-md"></i> Bitácora
                 </button>
                 <button onclick="switchTab('mensajes')" id="btn-tab-mensajes" class="flex-1 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md flex items-center justify-center gap-2 transition">
-                    <i data-lucide="message-square" style="width:16px;height:16px;"></i> Mensajes
+                    <i data-lucide="message-square" class="icon-md"></i> Mensajes
                 </button>
             </div>
 
@@ -192,7 +235,7 @@
                 <div class="absolute left-8 top-0 bottom-0 w-px bg-gray-200"></div>
 
                 @forelse($caso->bitacoras as $bitacora)
-                <div class="relative flex items-start gap-4 z-10 cursor-pointer group" onclick="mostrarDetalleEvento('{{ $bitacora->usuario?->name ?? 'Sistema' }}', '{{ $bitacora->accion }}', '{{ $bitacora->created_at->translatedFormat('d de F de Y \a \l\a\s H:i \h') }}', '{{ addslashes($bitacora->descripcion) }}')">
+                <div class="relative flex items-start gap-4 z-10 cursor-pointer group" onclick="mostrarDetalleEvento('{{ $bitacora->usuario?->name ?? 'Sistema' }}', '{{ $bitacora->accion }}', '{{ \Carbon\Carbon::parse($bitacora->created_at)->locale('es')->translatedFormat('d \d\e F \d\e Y \a \l\a\s H:i \h') }}', '{{ addslashes($bitacora->descripcion) }}')">
                     
                     @php
                         $iconData = match(strtolower($bitacora->accion)) {
@@ -205,7 +248,7 @@
                     @endphp
 
                     <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border-2 border-white {{ $iconData['color'] }} group-hover:scale-110 transition-transform">
-                        <i data-lucide="{{ $iconData['icon'] }}" style="width:14px;height:14px;"></i>
+                        <i data-lucide="{{ $iconData['icon'] }}" class="icon-sm"></i>
                     </div>
 
                     <div class="flex-1 pt-1 bg-white group-hover:bg-gray-50 rounded transition p-1 -m-1">
@@ -246,8 +289,8 @@
                     <form id="form-chat" action="{{ route('casos.mensajes', $caso->id) }}" method="POST" class="flex items-center gap-2">
                         @csrf
                         <input type="text" name="mensaje" required placeholder="Escribe un mensaje..." class="flex-1 bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-lg px-4 py-2.5 focus:outline-none focus:border-red-400 focus:bg-white transition">
-                        <button type="submit" class="bg-[#d28a96] hover:bg-[#b11226] text-white rounded-lg transition shrink-0 flex items-center justify-center w-11 h-11">
-                            <svg style="width:18px;height:18px;margin-left:-2px" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                        <button type="submit" class="chat-btn-send text-white rounded-lg transition shrink-0 flex items-center justify-center w-11 h-11">
+                            <svg class="icon-lg chat-send-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
                         </button>
                     </form>
                 </div>
@@ -307,7 +350,7 @@
             <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                 <h3 class="text-lg font-bold text-gray-900">Agregar Usuario al Caso</h3>
                 <button type="button" onclick="document.getElementById('modal-agregar-usuario').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 transition p-1 border border-gray-200 rounded-md">
-                    <i data-lucide="x" style="width:16px;height:16px;"></i>
+                    <i data-lucide="x" class="icon-md"></i>
                 </button>
             </div>
             
@@ -315,7 +358,7 @@
                 <div>
                     <label class="block text-xs font-semibold text-gray-900 mb-2">Seleccionar Usuario</label>
                     <div class="relative mb-2">
-                        <i data-lucide="search" class="absolute left-3 top-2.5 text-gray-400" style="width:14px;height:14px;"></i>
+                        <i data-lucide="search" class="absolute left-3 top-2.5 text-gray-400 icon-sm"></i>
                         <input type="text" placeholder="Buscar por nombre o rol..." onkeyup="filtrarUsuarios(this, 'select-agregar')" class="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:border-red-400">
                     </div>
                     <select id="select-agregar" name="user_id" required size="6" class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm focus:bg-white focus:border-red-500 outline-none transition">
@@ -351,7 +394,7 @@
             <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                 <h3 class="text-lg font-bold text-gray-900">Reemplazar Usuario</h3>
                 <button type="button" onclick="document.getElementById('modal-reemplazar-usuario').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 transition p-1 border border-gray-200 rounded-md">
-                    <i data-lucide="x" style="width:16px;height:16px;"></i>
+                    <i data-lucide="x" class="icon-md"></i>
                 </button>
             </div>
             
@@ -360,7 +403,7 @@
                 <div>
                     <label class="block text-xs font-semibold text-gray-900 mb-2">Seleccionar Nuevo Usuario</label>
                     <div class="relative mb-2">
-                        <i data-lucide="search" class="absolute left-3 top-2.5 text-gray-400" style="width:14px;height:14px;"></i>
+                        <i data-lucide="search" class="absolute left-3 top-2.5 text-gray-400 icon-sm"></i>
                         <input type="text" placeholder="Buscar por nombre o rol..." onkeyup="filtrarUsuarios(this, 'select-reemplazo')" class="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:border-blue-400">
                     </div>
                     <select id="select-reemplazo" name="nuevo_user_id" required size="6" class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm focus:bg-white focus:border-blue-500 outline-none transition">

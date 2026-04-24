@@ -13,7 +13,7 @@
         </div>
         @if($esAdmin)
         <a href="{{ route('casos.crear') }}" class="btn-primary">
-            <i data-lucide="plus-circle" style="width:16px;height:16px;"></i>
+            <i data-lucide="plus-circle" class="w-4 h-4"></i>
             Crear Nuevo Caso
         </a>
         @endif
@@ -25,7 +25,7 @@
     <form action="{{ route('casos.index') }}" method="GET" class="flex-1 flex gap-4">
         
         <div class="relative flex-1">
-            <i data-lucide="search" class="absolute left-3 top-2.5 text-gray-400" style="width:18px;height:18px;"></i>
+            <i data-lucide="search" class="absolute left-3 top-2.5 text-gray-400 w-[18px] h-[18px]"></i>
             <input type="text" name="search" value="{{ request('search') }}" 
                    placeholder="Buscar por radicado, descripción, nombre o documento..."
                    class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm focus:bg-white focus:border-red-500 outline-none transition">
@@ -56,7 +56,7 @@
                         'En proceso'  => 'bg-blue-100 text-blue-700',
                         'Completado'  => 'bg-green-100 text-green-700',
                         'Finalizado'  => 'bg-red-100 text-red-700',
-                        default       => 'bg-gray-100 text-gray-700',
+                        default       => 'bg-yellow-100 text-yellow-800',
                     };
                 @endphp
                 <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide {{ $badgeClass }}">
@@ -86,7 +86,7 @@
     </div>
     @empty
     <div class="bg-white border border-gray-200 rounded-lg p-12 text-center text-gray-500">
-        <i data-lucide="folder-open" class="mx-auto mb-3 text-gray-300" style="width:40px;height:40px;"></i>
+        <i data-lucide="folder-open" class="mx-auto mb-3 text-gray-300 w-10 h-10"></i>
         <p class="text-sm">No se encontraron casos que coincidan con la búsqueda.</p>
     </div>
     @endforelse

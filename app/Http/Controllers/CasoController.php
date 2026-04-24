@@ -56,12 +56,25 @@ class CasoController extends Controller
             if (!$asignado) {
                 abort(403, 'No tienes acceso a este caso.');
             }
+
+            // Cambio automático de estado a En proceso
+            if ($caso->estado === 'Pendiente') {
+                $caso->update(['estado' => 'En proceso']);
+                
+                \App\Models\Bitacora::registrar(
+                    modulo: 'Casos',
+                    accion: 'Cambio de Estado',
+                    descripcion: "El caso pasó automáticamente a En proceso tras la revisión del usuario asignado.",
+                    casoId: $caso->id,
+                    entidadId: $caso->id
+                );
+            }
         }
 
         $caso->load([
             'tipo', 'subtipo', 'solicitante',
             'usuarios' => fn($q) => $q->wherePivot('activo', true),
-            'tareas' => fn($q) => $q->with('observaciones.autor'),
+            'tareas',
             'bitacoras' => fn($q) => $q->with('usuario')->latest(),
             'mensajes' => fn($q) => $q->with('autor')->oldest()
         ]);

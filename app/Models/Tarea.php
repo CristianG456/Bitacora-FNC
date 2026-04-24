@@ -38,38 +38,4 @@ class Tarea extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    public function observaciones()
-    {
-        return $this->hasMany(Observacion::class, 'tarea_id');
-    }
-
-    // ─── Helpers ───────────────────────────────────────────────────
-
-    public function estaPendiente(): bool
-    {
-        return $this->estado === 'Pendiente';
-    }
-
-    public function estaEnProceso(): bool
-    {
-        return $this->estado === 'En proceso';
-    }
-
-    public function estaCompletada(): bool
-    {
-        return $this->estado === 'Completada';
-    }
-
-    /**
-     * Badge de color según estado para la UI.
-     */
-    public function badgeEstado(): string
-    {
-        return match ($this->estado) {
-            'Pendiente'  => 'badge-pendiente',
-            'En proceso' => 'badge-proceso',
-            'Completada' => 'badge-completada',
-            default      => 'badge-default',
-        };
-    }
 }
