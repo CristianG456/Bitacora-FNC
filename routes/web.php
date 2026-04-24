@@ -7,17 +7,17 @@ use App\Http\Controllers\CasoController;
 use App\Http\Controllers\TareaController;
 use App\Http\Controllers\UserController;
 
-// ─────────────────────────────────────────────────────────────────
+
 //  AUTENTICACIÓN (públicas)
-// ─────────────────────────────────────────────────────────────────
+
 
 Route::get('/', [LoginController::class, 'showLogin'])->name('login');
 Route::post('/login', [LoginController::class, 'login'])->name('login.post');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
-// ─────────────────────────────────────────────────────────────────
+
 //  RUTAS PROTEGIDAS (requieren autenticación)
-// ─────────────────────────────────────────────────────────────────
+
 
 Route::middleware(['auth'])->group(function () {
 
@@ -27,7 +27,7 @@ Route::middleware(['auth'])->group(function () {
     // Usuarios API (búsqueda)
     Route::get('/usuarios/buscar', [UserController::class, 'buscar'])->name('usuarios.buscar');
 
-    // ─── USUARIOS (Solo Administrador) ────────────────────────────
+    //  USUARIOS (Solo Administrador) 
     Route::middleware(['role:Administrador'])->group(function () {
         Route::get('/usuarios', [UserController::class, 'index'])->name('usuarios.index');
         Route::get('/usuarios/crear', [UserController::class, 'crear'])->name('usuarios.crear');
@@ -37,7 +37,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/usuarios/{usuario}/estado', [UserController::class, 'cambiarEstado'])->name('usuarios.estado');
     });
 
-    // ─── CASOS ────────────────────────────────────────────────────
+    //  CASOS 
 
     // Listado de casos
     Route::get('/casos', [CasoController::class, 'index'])->name('casos.index');
@@ -61,7 +61,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/casos/{caso}/usuarios/{usuario}/reemplazar', [CasoController::class, 'reemplazarUsuario'])->name('casos.usuarios.reemplazar');
     });
 
-    // ─── TAREAS (dentro de un caso) ───────────────────────────────
+    // TAREAS (dentro de un caso)
 
     // Ver lista de tareas del caso (todos los asignados + admin/jurídica)
     Route::get('/casos/{caso}/tareas', [TareaController::class, 'index'])
