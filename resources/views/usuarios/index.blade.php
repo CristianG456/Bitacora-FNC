@@ -75,7 +75,7 @@
                             $rolNombre = $user->role?->nombre ?? 'Sin Rol';
                             $rolBadgeClass = match($rolNombre) {
                                 'Administrador'    => 'bg-red-700 text-white',
-                                'Juridica'         => 'bg-gray-200 text-gray-700',
+                                'Juridica'         => 'bg-blue-400 text-white',
                                 'Usuario Principal'=> 'bg-blue-500 text-white',
                                 'Usuario'          => 'bg-gray-500 text-white',
                                 'Consultor'        => 'bg-orange-500 text-white',
