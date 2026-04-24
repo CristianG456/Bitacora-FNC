@@ -6,7 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CasoController;
 use App\Http\Controllers\TareaController;
 use App\Http\Controllers\UserController;
-
+use App\Http\Controllers\HistorialController;
 
 //  AUTENTICACIÓN (públicas)
 
@@ -91,6 +91,13 @@ Route::middleware(['auth'])->group(function () {
             ->name('tareas.actualizar');
         Route::delete('/casos/{caso}/tareas/{tarea}', [TareaController::class, 'eliminar'])
             ->name('tareas.eliminar');
+    });
+
+    // HISTORIAL GLOBAL (Solo Administrador y Juridica)
+    Route::middleware(['role:Administrador,Juridica'])->group(function () {
+        Route::get('/historial', [HistorialController::class, 'index'])->name('historial.index');
+        Route::get('/historial/exportar/excel', [HistorialController::class, 'exportarExcel'])->name('historial.exportar.excel');
+        Route::get('/historial/exportar/pdf', [HistorialController::class, 'exportarPdf'])->name('historial.exportar.pdf');
     });
 
 });

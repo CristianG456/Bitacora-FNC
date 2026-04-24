@@ -523,10 +523,12 @@
         </a>
         @endif
 
-        <a href="#" class="nav-item">
+        @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica']))
+        <a href="{{ route('historial.index') }}" class="nav-item {{ request()->routeIs('historial.*') ? 'active' : '' }}">
             <i data-lucide="clock" style="width:18px;height:18px;"></i>
             Historial Global
         </a>
+        @endif
 
     </nav>
 
