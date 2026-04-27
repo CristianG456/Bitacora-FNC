@@ -97,12 +97,31 @@
         <div class="header-right">
 
             {{-- Notificaciones --}}
-            <div class="notif-bell" title="Notificaciones">
-                <i data-lucide="bell" style="width:20px;height:20px;"></i>
-                @php $sinLeer = auth()->user()?->notificacionesSinLeer() ?? 0; @endphp
-                @if($sinLeer > 0)
-                    <span class="notif-badge">{{ $sinLeer > 9 ? '9+' : $sinLeer }}</span>
-                @endif
+            <div class="relative" id="notif-container">
+                <div class="notif-bell cursor-pointer" title="Notificaciones" id="notif-btn" onclick="toggleNotificaciones()">
+                    <i data-lucide="bell" style="width:20px;height:20px;"></i>
+                    @php $sinLeer = auth()->user()?->notificacionesSinLeer() ?? 0; @endphp
+                    @if($sinLeer > 0)
+                        <span class="notif-badge" id="notif-badge-count">{{ $sinLeer > 9 ? '9+' : $sinLeer }}</span>
+                    @endif
+                </div>
+
+                <!-- Menú desplegable -->
+                <div id="notif-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
+                    <div class="p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                        <h3 class="font-bold text-sm text-gray-800">Notificaciones</h3>
+                        @if($sinLeer > 0)
+                        <form action="{{ route('notificaciones.marcar_leidas') }}" method="POST">
+                            @csrf
+                            <button type="submit" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Marcar leídas</button>
+                        </form>
+                        @endif
+                    </div>
+                    <div class="max-h-[300px] overflow-y-auto" id="notif-list">
+                        <!-- Las notificaciones se cargan por JS -->
+                        <div class="p-4 text-center text-sm text-gray-500">Cargando...</div>
+                    </div>
+                </div>
             </div>
 
             {{-- Usuario --}}
@@ -162,6 +181,55 @@
 
 <script>
     lucide.createIcons();
+
+    function toggleNotificaciones() {
+        const dropdown = document.getElementById('notif-dropdown');
+        dropdown.classList.toggle('hidden');
+        
+        if (!dropdown.classList.contains('hidden')) {
+            cargarNotificaciones();
+        }
+    }
+
+    function cargarNotificaciones() {
+        fetch('{{ route("notificaciones.recientes") }}')
+            .then(response => response.json())
+            .then(data => {
+                const list = document.getElementById('notif-list');
+                list.innerHTML = '';
+                
+                if (data.length === 0) {
+                    list.innerHTML = '<div class="p-4 text-center text-sm text-gray-500">No tienes notificaciones.</div>';
+                    return;
+                }
+
+                data.forEach(n => {
+                    const bg = n.leido ? 'bg-white' : 'bg-blue-50';
+                    const icon = n.tipo === 'success' ? '<i data-lucide="check-circle" class="w-4 h-4 text-green-500"></i>' : '<i data-lucide="info" class="w-4 h-4 text-blue-500"></i>';
+                    
+                    list.innerHTML += `
+                        <div class="p-3 border-b border-gray-50 flex gap-3 hover:bg-gray-50 transition ${bg}">
+                            <div class="mt-0.5 shrink-0">${icon}</div>
+                            <div>
+                                <h4 class="text-xs font-bold text-gray-800 mb-0.5">${n.titulo}</h4>
+                                <p class="text-xs text-gray-600 leading-snug">${n.mensaje}</p>
+                                <span class="text-[10px] text-gray-400 mt-1 block">${n.fecha}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                lucide.createIcons();
+            });
+    }
+
+    // Cerrar al hacer clic fuera
+    document.addEventListener('click', function(event) {
+        const container = document.getElementById('notif-container');
+        const dropdown = document.getElementById('notif-dropdown');
+        if (container && dropdown && !container.contains(event.target)) {
+            dropdown.classList.add('hidden');
+        }
+    });
 </script>
 
 @stack('scripts')

@@ -24,6 +24,10 @@ Route::middleware(['auth'])->group(function () {
     // Dashboard (todos los roles autenticados)
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
+    // Notificaciones
+    Route::get('/notificaciones/recientes', [\App\Http\Controllers\NotificacionController::class, 'getRecientes'])->name('notificaciones.recientes');
+    Route::post('/notificaciones/leidas', [\App\Http\Controllers\NotificacionController::class, 'marcarLeidas'])->name('notificaciones.marcar_leidas');
+
     // Usuarios API (búsqueda)
     Route::get('/usuarios/buscar', [UserController::class, 'buscar'])->name('usuarios.buscar');
 
@@ -59,6 +63,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/casos/{caso}/usuarios', [CasoController::class, 'asignarUsuario'])->name('casos.usuarios.asignar');
         Route::delete('/casos/{caso}/usuarios/{usuario}', [CasoController::class, 'removerUsuario'])->name('casos.usuarios.remover');
         Route::post('/casos/{caso}/usuarios/{usuario}/reemplazar', [CasoController::class, 'reemplazarUsuario'])->name('casos.usuarios.reemplazar');
+        Route::post('/casos/{caso}/finalizar', [CasoController::class, 'finalizar'])->name('casos.finalizar');
     });
 
     // Completar tarea (Cualquier usuario asignado)

@@ -40,6 +40,9 @@ class TareaController extends Controller
                 'fecha_fin'    => $data['fecha_fin']    ?? null,
             ]);
 
+            // Actualizar el estado del usuario a 'En proceso' ya que se le añadió una nueva tarea
+            $caso->usuarios()->updateExistingPivot($data['user_id'], ['estado' => 'En proceso']);
+
             // Notificar al usuario asignado
             Notificacion::enviar(
                 $tarea->user_id,
@@ -48,11 +51,15 @@ class TareaController extends Controller
                 'tarea'
             );
 
+            // Obtener el nombre del usuario asignado
+            $usuarioAsignado = User::find($tarea->user_id);
+            $nombreAsignado = $usuarioAsignado ? $usuarioAsignado->name : 'desconocido';
+
             // Bitácora
             Bitacora::registrar(
                 modulo:          'Tareas',
                 accion:          'Crear',
-                descripcion:     "Tarea creada para el usuario ID {$tarea->user_id} en el caso {$caso->radicado}.",
+                descripcion:     "El usuario ".Auth::user()->name." asignó la tarea '{$tarea->descripcion}' a {$nombreAsignado}.",
                 casoId:          $caso->id,
                 entidadId:       $tarea->id,
                 usuarioAfectado: $tarea->user_id,
@@ -79,10 +86,12 @@ class TareaController extends Controller
 
         DB::transaction(function () use ($caso, $tarea) {
 
+            $nombreAsignado = $tarea->usuario ? $tarea->usuario->name : 'nadie';
+
             Bitacora::registrar(
                 modulo:          'Tareas',
                 accion:          'Eliminar',
-                descripcion:     "Tarea ID {$tarea->id} eliminada del caso {$caso->radicado}.",
+                descripcion:     "El usuario ".Auth::user()->name." eliminó la tarea '{$tarea->descripcion}' que estaba asignada a {$nombreAsignado}.",
                 casoId:          $caso->id,
                 entidadId:       $tarea->id,
                 usuarioAfectado: $tarea->user_id,
@@ -127,13 +136,22 @@ class TareaController extends Controller
                 'contenido' => $request->input('observacion'),
             ]);
 
-            // Actualizar estado del caso si todas las tareas están completadas?
-            // "no se puede cerrar caso con tareas pendientes", el cierre es manual pero la tarea se marca completada.
+            // Actualizar estado del usuario en el caso
+            $totalUsuario = $caso->tareas()->where('user_id', $tarea->user_id)->count();
+            $completadasUsuario = $caso->tareas()->where('user_id', $tarea->user_id)->where('estado', 'Completada')->count();
+
+            if ($totalUsuario > 0) {
+                if ($completadasUsuario === $totalUsuario) {
+                    $caso->usuarios()->updateExistingPivot($tarea->user_id, ['estado' => 'Finalizado']);
+                } else {
+                    $caso->usuarios()->updateExistingPivot($tarea->user_id, ['estado' => 'En proceso']);
+                }
+            }
 
             Bitacora::registrar(
                 modulo:          'Tareas',
                 accion:          'Completar',
-                descripcion:     "Tarea ID {$tarea->id} completada por el usuario ID ".Auth::id().".",
+                descripcion:     "El usuario ".Auth::user()->name." completó la tarea '{$tarea->descripcion}'.",
                 casoId:          $caso->id,
                 entidadId:       $tarea->id,
                 usuarioAfectado: Auth::id(),

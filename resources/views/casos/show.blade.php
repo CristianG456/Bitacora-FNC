@@ -26,6 +26,23 @@
         <span class="px-2.5 py-1 rounded-md text-xs font-bold tracking-wide {{ $badgeClass }}">
             {{ $caso->estado }}
         </span>
+
+        @if($esAdmin && $caso->estado !== 'Finalizado')
+            @php
+                $totalTareas = $caso->tareas->count();
+                $completadas = $caso->tareas->where('estado', 'Completada')->count();
+                $todasCompletadas = ($totalTareas > 0 && $totalTareas === $completadas);
+            @endphp
+            <div class="ml-auto">
+                <form action="{{ route('casos.finalizar', $caso->id) }}" method="POST" onsubmit="return {{ $todasCompletadas ? "confirm('¿Seguro que deseas finalizar este caso? Esta acción notificará a todos los usuarios asignados y cambiará el estado del caso.');" : "false;" }}">
+                    @csrf
+                    <button type="submit" class="px-4 py-2 rounded-md font-bold text-sm transition shadow-sm flex items-center gap-2 {{ $todasCompletadas ? 'bg-[#c8828b] hover:bg-[#b11226] text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-75' }}" {{ $todasCompletadas ? '' : 'disabled' }} title="{{ $todasCompletadas ? 'Finalizar Caso' : 'Todas las tareas deben estar completadas para finalizar' }}">
+                        <i data-lucide="check-circle" class="icon-sm"></i>
+                        Finalizar Caso
+                    </button>
+                </form>
+            </div>
+        @endif
     </div>
     <div class="ml-8 text-sm text-gray-500">
         {{ $caso->tipo?->nombre }} • {{ $caso->subtipo?->nombre }}
@@ -70,6 +87,7 @@
             </div>
         </div>
 
+        @if($esAdmin)
         <!-- Usuarios Asignados -->
         <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
             <div class="flex items-center justify-between mb-4">
@@ -82,7 +100,7 @@
                     @endphp
                     <p class="text-xs text-gray-500 mt-1">Progreso: {{ $progreso }}% ({{ $tareasCompletadas }}/{{ $totalTareas }} completados)</p>
                 </div>
-                @if($esAdmin)
+                @if($esAdmin && $caso->estado !== 'Finalizado')
                 <button type="button" onclick="document.getElementById('modal-agregar-usuario').classList.remove('hidden')" class="btn-secondary text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300">
                     <i data-lucide="user-plus" class="icon-sm"></i> Agregar Usuario
                 </button>
@@ -115,17 +133,29 @@
                     
                     <div class="flex items-center gap-3">
                         @php
-                            $estadoUsu = $user->pivot->estado;
+                            $tareasUsuario = $caso->tareas->where('user_id', $user->id);
+                            $totalUsr = $tareasUsuario->count();
+                            $completadasUsr = $tareasUsuario->where('estado', 'Completada')->count();
+                            
+                            // Determinación dinámica del estado en caso de desincronización de la base de datos
+                            if ($totalUsr > 0 && $completadasUsr === $totalUsr) {
+                                $estadoUsu = 'Finalizado';
+                            } elseif ($totalUsr > 0 && $completadasUsr > 0) {
+                                $estadoUsu = 'En proceso';
+                            } else {
+                                $estadoUsu = $user->pivot->estado;
+                            }
+
                             $euClass = match($estadoUsu) {
                                 'En proceso' => 'bg-blue-600 text-white',
-                                'Completado' => 'bg-green-600 text-white',
+                                'Finalizado' => 'bg-green-600 text-white',
                                 default      => 'bg-gray-500 text-white',
                             };
                         @endphp
                         <span class="px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide {{ $euClass }}">
                             {{ $estadoUsu }}
                         </span>
-                        @if($esAdmin)
+                        @if($esAdmin && $caso->estado !== 'Finalizado')
                         <button type="button" onclick="abrirModalReemplazo({{ $user->id }}, '{{ addslashes($user->name) }}')" class="text-gray-400 hover:text-blue-600 p-1 bg-gray-50 hover:bg-blue-50 rounded" title="Reemplazar Usuario">
                             <i data-lucide="refresh-cw" class="icon-md"></i>
                         </button>
@@ -144,6 +174,7 @@
                 @endforelse
             </div>
         </div>
+        @endif
 
         <!-- Lista de Tareas -->
         <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
@@ -153,7 +184,7 @@
                 </h2>
             </div>
 
-            @if($esAdmin)
+            @if($esAdmin && $caso->estado !== 'Finalizado')
             <div class="mb-5 bg-gray-50 p-3 rounded-lg border border-gray-200">
                 <form action="{{ route('tareas.guardar', $caso->id) }}" method="POST" class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                     @csrf
@@ -204,7 +235,7 @@
                     </div>
                     
                     <div class="flex items-center gap-2 ml-4">
-                        @if($esAdmin)
+                        @if($esAdmin && $caso->estado !== 'Finalizado')
                         <form action="{{ route('tareas.eliminar', [$caso->id, $tarea->id]) }}" method="POST" class="inline" onsubmit="return confirm('¿Seguro que deseas eliminar esta tarea?');">
                             @csrf
                             @method('DELETE')
@@ -272,15 +303,23 @@
             
             <!-- TABS -->
             <div class="flex border-b border-gray-200 bg-gray-50 p-2 gap-1">
+                @php $verBitacora = auth()->user()->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor']); @endphp
+                @if($verBitacora)
                 <button onclick="switchTab('bitacora')" id="btn-tab-bitacora" class="flex-1 py-2 text-sm font-bold text-gray-900 bg-white shadow-sm rounded-md flex items-center justify-center gap-2 transition">
                     <i data-lucide="file-text" class="icon-md"></i> Bitácora
                 </button>
                 <button onclick="switchTab('mensajes')" id="btn-tab-mensajes" class="flex-1 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md flex items-center justify-center gap-2 transition">
                     <i data-lucide="message-square" class="icon-md"></i> Mensajes
                 </button>
+                @else
+                <div class="flex-1 py-2 text-sm font-bold text-gray-900 bg-white shadow-sm rounded-md flex items-center justify-center gap-2">
+                    <i data-lucide="message-square" class="icon-md"></i> Mensajes
+                </div>
+                @endif
             </div>
 
             <!-- CONTENIDO BITÁCORA -->
+            @if($verBitacora)
             <div id="content-bitacora" class="flex-1 overflow-y-auto p-4 space-y-6 relative block">
                 <div class="absolute left-8 top-0 bottom-0 w-px bg-gray-200"></div>
 
@@ -315,9 +354,10 @@
                 @endforelse
 
             </div>
+            @endif
 
             <!-- CONTENIDO MENSAJES -->
-            <div id="content-mensajes" class="flex-1 overflow-y-auto p-4 flex-col hidden bg-white relative">
+            <div id="content-mensajes" class="flex-1 overflow-y-auto p-4 flex-col {{ $verBitacora ? 'hidden' : 'flex' }} bg-white relative">
                 <div class="flex-1 space-y-4 overflow-y-auto mb-4 pr-2 flex flex-col" id="chat-container">
                     @forelse($caso->mensajes as $msg)
                         @php $esMio = $msg->user_id === auth()->id(); @endphp
@@ -497,6 +537,8 @@
 
     function switchTab(tab) {
         const btnBitacora = document.getElementById('btn-tab-bitacora');
+        if (!btnBitacora) return;
+        
         const btnMensajes = document.getElementById('btn-tab-mensajes');
         const contentBitacora = document.getElementById('content-bitacora');
         const contentMensajes = document.getElementById('content-mensajes');

@@ -65,7 +65,7 @@ class CasoController extends Controller
                 \App\Models\Bitacora::registrar(
                     modulo: 'Casos',
                     accion: 'Cambio de Estado',
-                    descripcion: "El caso pasó automáticamente a En proceso tras la revisión del usuario asignado.",
+                    descripcion: "El caso pasó automáticamente a En proceso tras la revisión del usuario asignado ({$user->name}).",
                     casoId: $caso->id,
                     entidadId: $caso->id
                 );
@@ -156,7 +156,7 @@ class CasoController extends Controller
             Bitacora::registrar(
                 modulo:      'Casos',
                 accion:      'Crear',
-                descripcion: "Caso creado con radicado {$radicado}.",
+                descripcion: "El caso con radicado {$radicado} fue creado por ".Auth::user()->name.".",
                 casoId:      $caso->id,
                 entidadId:   $caso->id,
                 metadata:    [
@@ -210,7 +210,7 @@ class CasoController extends Controller
         Bitacora::registrar(
             modulo: 'Casos',
             accion: 'Asignacion',
-            descripcion: "Usuario {$usuario->name} asignado al caso.",
+            descripcion: "El usuario ".Auth::user()->name." asignó a {$usuario->name} a este caso.",
             casoId: $caso->id,
             entidadId: $usuario->id,
             usuarioAfectado: $usuario->id
@@ -227,7 +227,7 @@ class CasoController extends Controller
         Bitacora::registrar(
             modulo: 'Casos',
             accion: 'Remover',
-            descripcion: "Usuario {$usuario->name} desvinculado del caso.",
+            descripcion: "El usuario ".Auth::user()->name." desvinculó a {$usuario->name} de este caso.",
             casoId: $caso->id,
             entidadId: $usuario->id,
             usuarioAfectado: $usuario->id
@@ -277,7 +277,7 @@ class CasoController extends Controller
             Bitacora::registrar(
                 modulo: 'Casos',
                 accion: 'Reemplazar',
-                descripcion: "Usuario {$usuario->name} fue reemplazado por {$nuevoUsuario->name}.",
+                descripcion: "El usuario ".Auth::user()->name." reemplazó a {$usuario->name} por {$nuevoUsuario->name} y le transfirió sus tareas.",
                 casoId: $caso->id,
                 entidadId: $nuevoUsuarioId,
                 usuarioAfectado: $usuario->id
@@ -310,5 +310,44 @@ class CasoController extends Controller
         return redirect()->route('casos.show', $caso->id)
             ->with('tab', 'mensajes') // Para abrir la tab correcta al recargar
             ->with('success', 'Mensaje enviado.');
+    }
+
+    public function finalizar(Request $request, Caso $caso)
+    {
+        // Validar que todas las tareas estén completadas
+        $totalTareas = $caso->tareas()->count();
+        $tareasCompletadas = $caso->tareas()->where('estado', 'Completada')->count();
+
+        if ($totalTareas === 0 || $totalTareas !== $tareasCompletadas) {
+            return redirect()->back()->with('error', 'No se puede finalizar el caso porque tiene tareas pendientes o no tiene tareas asignadas.');
+        }
+
+        if ($caso->estado === 'Finalizado') {
+            return redirect()->back()->with('error', 'El caso ya se encuentra finalizado.');
+        }
+
+        $caso->update([
+            'estado' => 'Finalizado'
+        ]);
+
+        Bitacora::registrar(
+            modulo: 'Casos',
+            accion: 'Cambio de Estado',
+            descripcion: "El caso fue marcado como Finalizado por ".Auth::user()->name.".",
+            casoId: $caso->id,
+            entidadId: $caso->id
+        );
+
+        // Notificar a todos los usuarios asignados
+        foreach ($caso->usuarios as $usuario) {
+            Notificacion::enviar(
+                $usuario->id,
+                'Caso Finalizado',
+                "El caso radicado {$caso->radicado} en el que estabas asignado ha sido finalizado.",
+                'success'
+            );
+        }
+
+        return redirect()->back()->with('success', 'El caso ha sido finalizado exitosamente.');
     }
 }
