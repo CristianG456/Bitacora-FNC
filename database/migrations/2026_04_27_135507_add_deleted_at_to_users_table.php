@@ -12,13 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->foreignId('rol_id')
-                ->nullable()
-                ->constrained('roles')
-                ->nullOnDelete();
-            
-            $table->string('area')->nullable()->after('password');
-            $table->boolean('activo')->default(true)->after('rol_id');
+            $table->softDeletes();
         });
     }
 

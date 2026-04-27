@@ -22,7 +22,9 @@ class AdminSeeder extends Seeder
             [
                 'name' => 'Administrador',
                 'password' => Hash::make('Admin123!-'),
-                'role_id' => $adminRole->id
+                'rol_id' => $adminRole->id,
+                'area' => 'Dirección General',
+                'activo' => true
             ]
         );
     }

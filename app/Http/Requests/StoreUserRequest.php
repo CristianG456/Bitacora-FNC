@@ -18,7 +18,7 @@ class StoreUserRequest extends FormRequest
             'email'    => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
             'area'     => ['nullable', 'string', 'max:255'],
-            'role_id'  => ['required', 'exists:roles,id'],
+            'rol_id'   => ['required', 'exists:roles,id'],
             'activo'   => ['nullable', 'boolean'],
         ];
     }
@@ -34,8 +34,8 @@ class StoreUserRequest extends FormRequest
             'password.required'  => 'La contraseña es obligatoria.',
             'password.min'       => 'La contraseña debe tener al menos 8 caracteres.',
             'password.confirmed' => 'Las contraseñas no coinciden.',
-            'role_id.required'   => 'Debe seleccionar un rol para el usuario.',
-            'role_id.exists'     => 'El rol seleccionado no es válido.',
+            'rol_id.required'    => 'Debe seleccionar un rol para el usuario.',
+            'rol_id.exists'      => 'El rol seleccionado no es válido.',
         ];
     }
 }

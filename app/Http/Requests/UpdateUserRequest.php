@@ -25,7 +25,7 @@ class UpdateUserRequest extends FormRequest
             ],
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
             'area'     => ['nullable', 'string', 'max:255'],
-            'role_id'  => ['required', 'exists:roles,id'],
+            'rol_id'   => ['required', 'exists:roles,id'],
             'activo'   => ['nullable', 'boolean'],
         ];
     }
@@ -40,8 +40,8 @@ class UpdateUserRequest extends FormRequest
             'email.unique'       => 'Este correo ya está registrado en el sistema.',
             'password.min'       => 'La contraseña debe tener al menos 8 caracteres.',
             'password.confirmed' => 'Las contraseñas no coinciden.',
-            'role_id.required'   => 'Debe seleccionar un rol para el usuario.',
-            'role_id.exists'     => 'El rol seleccionado no es válido.',
+            'rol_id.required'    => 'Debe seleccionar un rol para el usuario.',
+            'rol_id.exists'      => 'El rol seleccionado no es válido.',
         ];
     }
 }
