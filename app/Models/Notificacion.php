@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Mail;
+use App\Models\User;
 
 class Notificacion extends Model
 {
@@ -39,7 +41,7 @@ class Notificacion extends Model
         string $mensaje,
         string $tipo = 'info'
     ): self {
-        return self::create([
+        $notificacion = self::create([
             'user_id'    => $userId,
             'tipo'       => $tipo,
             'titulo'     => $titulo,
@@ -47,5 +49,19 @@ class Notificacion extends Model
             'leido'      => false,
             'created_at' => now(),
         ]);
+
+        try {
+            $user = User::find($userId);
+            if ($user && $user->email) {
+                Mail::raw($mensaje, function ($msg) use ($user, $titulo) {
+                    $msg->to($user->email)
+                        ->subject($titulo);
+                });
+            }
+        } catch (\Exception $e) {
+            // Ignorar errores de correo para no romper la app
+        }
+
+        return $notificacion;
     }
 }

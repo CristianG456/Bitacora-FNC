@@ -121,3 +121,68 @@
     margin-top: 16px;
     display: inline-flex;
 }
+
+/* ── User Cards Dashboard ── */
+.dashboard-stats-grid.user-stats {
+    grid-template-columns: repeat(3, 1fr);
+    margin-bottom: 30px;
+}
+.user-cases-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.user-case-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.case-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.case-card-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 16px;
+    color: #111827;
+}
+.case-card-title .badge {
+    font-size: 11px;
+    padding: 4px 8px;
+}
+.case-description {
+    color: #4b5563;
+    font-size: 13.5px;
+    margin: 0 0 16px;
+    line-height: 1.5;
+}
+.case-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #9ca3af;
+}
+.meta-separator {
+    margin: 0 4px;
+}
+.btn-ver {
+    background: #b11226;
+    color: white;
+    padding: 6px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background 0.2s;
+}
+.btn-ver:hover {
+    background: #8b0e1e;
+    color: white;
+}

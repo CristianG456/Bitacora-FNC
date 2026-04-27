@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Models\Observacion;
 
 class TareaController extends Controller
 {
@@ -96,6 +97,53 @@ class TareaController extends Controller
     }
 
 
+
+    // ─── Completar tarea (con observación) ─────────────────────────
+
+    public function completar(Request $request, Caso $caso, Tarea $tarea)
+    {
+        $request->validate([
+            'observacion' => 'required|string|min:5|max:2000'
+        ], [
+            'observacion.required' => 'La observación es obligatoria para finalizar la tarea.',
+            'observacion.min' => 'La observación debe tener al menos 5 caracteres.'
+        ]);
+
+        $this->verificarTareaDeCaso($caso, $tarea);
+
+        if ($tarea->user_id !== Auth::id() && !Auth::user()->tieneAlgunRol(['Administrador', 'Juridica'])) {
+            abort(403, 'Solo el usuario asignado puede completar esta tarea.');
+        }
+
+        DB::transaction(function () use ($request, $caso, $tarea) {
+            $tarea->update([
+                'estado' => 'Completada',
+                'fecha_fin' => now(),
+            ]);
+
+            Observacion::create([
+                'tarea_id' => $tarea->id,
+                'user_id' => Auth::id(),
+                'contenido' => $request->input('observacion'),
+            ]);
+
+            // Actualizar estado del caso si todas las tareas están completadas?
+            // "no se puede cerrar caso con tareas pendientes", el cierre es manual pero la tarea se marca completada.
+
+            Bitacora::registrar(
+                modulo:          'Tareas',
+                accion:          'Completar',
+                descripcion:     "Tarea ID {$tarea->id} completada por el usuario ID ".Auth::id().".",
+                casoId:          $caso->id,
+                entidadId:       $tarea->id,
+                usuarioAfectado: Auth::id(),
+                metadata:        ['observacion' => $request->input('observacion')]
+            );
+        });
+
+        return redirect()->route('casos.show', $caso->id)
+            ->with('success', 'Tarea completada exitosamente.');
+    }
 
     // ─── Métodos privados de autorización ──────────────────────────
 

@@ -148,7 +148,9 @@
         <!-- Lista de Tareas -->
         <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-base font-bold text-gray-900">Lista de Tareas</h2>
+                <h2 class="text-base font-bold text-gray-900">
+                    {{ $esAdmin ? 'Lista de Tareas' : 'Mis Tareas' }}
+                </h2>
             </div>
 
             @if($esAdmin)
@@ -181,7 +183,6 @@
                 </div>
                 @endif
             </div>
-            @endif
             
             <div class="space-y-3">
                 @forelse($caso->tareas as $tarea)
@@ -193,7 +194,13 @@
                         </div>
                         <p class="text-xs text-gray-500">
                             Asignado a: <strong class="text-gray-700">{{ $tarea->usuario->name ?? 'Sin asignar' }}</strong>
+                            | Estado: {{ $tarea->estado }}
                         </p>
+                        @if($tarea->estado === 'Completada' && $tarea->observacion)
+                            <div class="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">
+                                <strong>Observación:</strong> {{ $tarea->observacion->contenido }}
+                            </div>
+                        @endif
                     </div>
                     
                     <div class="flex items-center gap-2 ml-4">
@@ -212,6 +219,49 @@
                 <p class="text-sm text-gray-500 text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">No hay tareas creadas para este caso.</p>
                 @endforelse
             </div>
+
+            @else
+                @php
+                    $misTareas = $caso->tareas->where('user_id', auth()->id());
+                    $completadas = $misTareas->where('estado', 'Completada')->count();
+                    $total = $misTareas->count();
+                @endphp
+                <p class="text-sm text-gray-500 mb-4">{{ $completadas }} de {{ $total }} tareas completadas</p>
+                
+                <div class="space-y-4">
+                    @foreach($misTareas as $tarea)
+                        @if($tarea->estado === 'Completada')
+                            <div class="border border-green-200 bg-green-50 rounded-lg p-4">
+                                <div class="flex items-center gap-2 text-green-700 font-bold text-sm mb-1">
+                                    <i data-lucide="check-circle" class="icon-sm"></i>
+                                    Tarea {{ $tarea->orden }} - Completada
+                                </div>
+                                <p class="text-sm text-gray-900 mb-2">{{ $tarea->descripcion }}</p>
+                                @if($tarea->observacion)
+                                <div class="mt-2 text-sm text-gray-700">
+                                    <span class="font-semibold text-gray-600 block mb-0.5">Observación:</span>
+                                    {{ $tarea->observacion->contenido }}
+                                </div>
+                                @endif
+                            </div>
+                        @else
+                            <div class="border border-gray-200 rounded-lg p-4 bg-white">
+                                <h3 class="font-bold text-sm text-gray-900 mb-1">Tarea {{ $tarea->orden }}</h3>
+                                <p class="text-sm text-gray-600 mb-4">{{ $tarea->descripcion }}</p>
+                                
+                                <form action="{{ route('tareas.completar', [$caso->id, $tarea->id]) }}" method="POST">
+                                    @csrf
+                                    <label class="block text-sm font-bold text-gray-900 mb-2">Observación de la Tarea</label>
+                                    <textarea name="observacion" rows="3" placeholder="Describe el trabajo realizado, hallazgos o recomendaciones..." class="w-full bg-gray-50 border border-gray-200 rounded-md p-3 text-sm focus:outline-none focus:border-red-400 mb-3" required></textarea>
+                                    <button type="submit" class="w-full py-2.5 bg-[#c8828b] hover:bg-[#b11226] text-white rounded-md font-bold text-sm transition shadow-sm">
+                                        Finalizar Tarea
+                                    </button>
+                                </form>
+                            </div>
+                        @endif
+                    @endforeach
+                </div>
+            @endif
         </div>
 
     </div>

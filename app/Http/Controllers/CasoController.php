@@ -10,6 +10,7 @@ use App\Models\SubtipoProceso;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Models\Notificacion;
 
 class CasoController extends Controller
 {
@@ -20,7 +21,7 @@ class CasoController extends Controller
 
         $query = $esAdmin
             ? Caso::query()
-            : Caso::whereHas('usuarios', fn($q) => $q->where('users.id', $user->id)->where('activo', true));
+            : Caso::whereHas('usuarios', fn($q) => $q->where('users.id', $user->id)->where('caso_usuario.activo', true));
 
         // Búsqueda
         if ($search = $request->input('search')) {
@@ -131,6 +132,13 @@ class CasoController extends Controller
                         'activo'           => true,
                     ]);
 
+                    Notificacion::enviar(
+                        $userId,
+                        'Nuevo caso asignado',
+                        "Se te ha asignado el caso radicado {$radicado}.",
+                        'caso'
+                    );
+
                     // Crear las tareas de este usuario
                     if (isset($data['tareas'][$userId])) {
                         foreach ($data['tareas'][$userId] as $descTarea) {
@@ -190,6 +198,13 @@ class CasoController extends Controller
             ]);
         }
 
+        Notificacion::enviar(
+            $userId,
+            'Nuevo caso asignado',
+            "Se te ha asignado el caso radicado {$caso->radicado}.",
+            'caso'
+        );
+
         $usuario = \App\Models\User::find($userId);
 
         Bitacora::registrar(
@@ -242,6 +257,13 @@ class CasoController extends Controller
                     'activo'           => true,
                 ]);
             }
+
+            Notificacion::enviar(
+                $nuevoUsuarioId,
+                'Reasignación de caso',
+                "Se te ha reasignado el caso radicado {$caso->radicado}.",
+                'caso'
+            );
 
             // 2. Transferir todas las tareas del caso del usuario viejo al nuevo
             \App\Models\Tarea::where('caso_id', $caso->id)

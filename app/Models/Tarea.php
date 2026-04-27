@@ -38,4 +38,8 @@ class Tarea extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    public function observacion()
+    {
+        return $this->hasOne(Observacion::class, 'tarea_id');
+    }
 }

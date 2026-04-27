@@ -60,12 +60,14 @@
         </a>
         @endif
 
+        @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica']))
         <span class="nav-section-title">Gestión</span>
 
         <a href="#" class="nav-item">
             <i data-lucide="file-text" style="width:18px;height:18px;"></i>
             Tipos de Proceso
         </a>
+        @endif
 
         @if(auth()->user()?->tieneAlgunRol(['Administrador']))
         <a href="{{ route('usuarios.index') }}" class="nav-item {{ request()->routeIs('usuarios.*') ? 'active' : '' }}">

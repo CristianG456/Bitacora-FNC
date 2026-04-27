@@ -61,6 +61,10 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/casos/{caso}/usuarios/{usuario}/reemplazar', [CasoController::class, 'reemplazarUsuario'])->name('casos.usuarios.reemplazar');
     });
 
+    // Completar tarea (Cualquier usuario asignado)
+    Route::post('/casos/{caso}/tareas/{tarea}/completar', [TareaController::class, 'completar'])
+        ->name('tareas.completar');
+
     // Crear y eliminar tareas (solo Administrador y Jurídica)
     Route::middleware(['role:Administrador,Juridica'])->group(function () {
         Route::post('/casos/{caso}/tareas', [TareaController::class, 'guardar'])
