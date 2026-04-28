@@ -63,9 +63,9 @@
         @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica']))
         <span class="nav-section-title">Gestión</span>
 
-        <a href="#" class="nav-item">
+        <a href="{{ route('tipos.index') }}" class="nav-item {{ request()->routeIs('tipos.*') ? 'active' : '' }}">
             <i data-lucide="file-text" style="width:18px;height:18px;"></i>
-            Tipos de Proceso
+            Tipos de Documento
         </a>
         @endif
 

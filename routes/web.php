@@ -7,6 +7,7 @@ use App\Http\Controllers\CasoController;
 use App\Http\Controllers\TareaController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\HistorialController;
+use App\Http\Controllers\TipoProcesoController;
 
 //  AUTENTICACIÓN (públicas)
 
@@ -39,6 +40,17 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/usuarios/{usuario}/editar', [UserController::class, 'editar'])->name('usuarios.editar');
         Route::put('/usuarios/{usuario}', [UserController::class, 'actualizar'])->name('usuarios.actualizar');
         Route::post('/usuarios/{usuario}/estado', [UserController::class, 'cambiarEstado'])->name('usuarios.estado');
+    });
+
+    //  TIPOS DE PROCESO (Solo Administrador y Juridica)
+    Route::middleware(['role:Administrador,Juridica'])->group(function () {
+        Route::get('/tipos', [TipoProcesoController::class, 'index'])->name('tipos.index');
+        Route::post('/tipos', [TipoProcesoController::class, 'store'])->name('tipos.store');
+        Route::put('/tipos/{tipo}', [TipoProcesoController::class, 'update'])->name('tipos.update');
+        Route::post('/tipos/{tipo}/estado', [TipoProcesoController::class, 'toggleEstado'])->name('tipos.estado');
+        
+        Route::post('/tipos/{tipo}/subtipos', [TipoProcesoController::class, 'storeSubtipo'])->name('tipos.subtipos.store');
+        Route::put('/tipos/{tipo}/subtipos/{subtipo}', [TipoProcesoController::class, 'updateSubtipo'])->name('tipos.subtipos.update');
     });
 
     //  CASOS 

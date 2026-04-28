@@ -8,7 +8,11 @@ class SubtipoProceso extends Model
 {
     protected $table = 'subtipos_proceso';
 
-    protected $fillable = ['tipo_id', 'nombre', 'codigo'];
+    protected $fillable = ['tipo_id', 'nombre', 'codigo', 'activo'];
+
+    protected $casts = [
+        'activo' => 'boolean',
+    ];
 
     public function tipo()
     {

@@ -11,6 +11,12 @@ class TipoProceso extends Model
     protected $fillable = [
         'nombre',
         'codigo',
+        'descripcion',
+        'activo',
+    ];
+
+    protected $casts = [
+        'activo' => 'boolean',
     ];
 
     public function subtipos()
