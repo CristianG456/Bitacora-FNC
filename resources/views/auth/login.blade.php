@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Login</title>
+    
+    <link rel="icon" href="{{ asset('imagenes/federacion cafeteros logo.png') }}" type="image/png">
 
     <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -42,7 +44,7 @@
         @endif
 
         <!-- FORMULARIO -->
-        <form method="POST" action="{{ route('login.post') }}">
+        <form method="POST" action="{{ route('login.post') }}" autocomplete="off">
         @csrf
 
             <!-- Email -->
@@ -50,7 +52,8 @@
                 <label class="block text-sm mb-1">Correo electrónico</label>
                 <input type="email" name="email"
                     class="w-full p-3 border rounded-lg bg-gray-100"
-                    placeholder="usuario@cafedecolombia.com">
+                    placeholder="usuario@cafedecolombia.com"
+                    autocomplete="off">
             </div>
 
             <!-- Password -->

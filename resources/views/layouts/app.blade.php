@@ -6,6 +6,8 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Sistema de Gestión de Casos Jurídicos')</title>
     <meta name="description" content="Sistema de Gestión de Casos Jurídicos - Federación Nacional de Cafeteros">
+    
+    <link rel="icon" href="{{ asset('imagenes/federacion cafeteros logo.png') }}" type="image/png">
 
     {{-- Tailwind CDN (ya está en el proyecto) --}}
     <script src="https://cdn.tailwindcss.com"></script>
