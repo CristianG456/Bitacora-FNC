@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Bitacora;
+use App\Models\Caso;
 use App\Models\User;
 use App\Models\TipoProceso;
 use Illuminate\Http\Request;
@@ -11,24 +12,56 @@ use Illuminate\Support\Facades\Response;
 class HistorialController extends Controller
 {
     /**
-     * Muestra el historial global del sistema.
+     * Muestra la lista de casos finalizados con filtros.
      */
     public function index(Request $request)
     {
-        $query = Bitacora::with(['caso.tipo', 'usuario.role'])->latest();
+        $query = Caso::where('estado', 'Finalizado')
+            ->with(['tipo', 'subtipo', 'solicitante', 'usuarios', 'bitacoras'])
+            ->latest('updated_at');
 
-        // Filtro por radicado o nombre del solicitante
-        if ($request->filled('radicado')) {
-            $query->whereHas('caso', function($q) use ($request) {
-                $q->where('radicado', 'like', '%' . $request->radicado . '%')
-                  ->orWhereHas('solicitante', function($sq) use ($request) {
-                      $sq->where('nombre', 'like', '%' . $request->radicado . '%')
-                         ->orWhere('documento', 'like', '%' . $request->radicado . '%');
+        // Filtro por búsqueda (radicado, solicitante)
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('radicado', 'like', '%' . $search . '%')
+                  ->orWhere('descripcion', 'like', '%' . $search . '%')
+                  ->orWhereHas('solicitante', function($sq) use ($search) {
+                      $sq->where('nombre', 'like', '%' . $search . '%')
+                         ->orWhere('documento', 'like', '%' . $search . '%');
                   });
             });
         }
 
-        // Filtro por evento/accion
+        // Filtro por tipo de proceso
+        if ($request->filled('tipo_id')) {
+            $query->where('tipo_id', $request->tipo_id);
+        }
+
+        $casos = $query->paginate(15)->withQueryString();
+        $tipos = TipoProceso::all();
+
+        return view('historial.index', compact('casos', 'tipos'));
+    }
+
+    /**
+     * Muestra la bitácora completa de un caso específico.
+     */
+    public function show(Request $request, Caso $caso)
+    {
+        // Solo permitir ver bitácora de casos finalizados
+        if ($caso->estado !== 'Finalizado') {
+            return redirect()->route('historial.index')
+                ->with('error', 'Solo se puede ver la bitácora de casos finalizados.');
+        }
+
+        $caso->load(['tipo', 'subtipo', 'solicitante', 'usuarios.role']);
+
+        $query = Bitacora::with(['usuario.role'])
+            ->where('caso_id', $caso->id)
+            ->latest('created_at');
+
+        // Filtro por evento
         if ($request->filled('evento')) {
             $query->where('accion', $request->evento);
         }
@@ -38,28 +71,18 @@ class HistorialController extends Controller
             $query->where('user_id', $request->usuario_id);
         }
 
-        // Filtro por tipo de proceso
-        if ($request->filled('tipo_id')) {
-            $query->whereHas('caso', function($q) use ($request) {
-                $q->where('tipo_id', $request->tipo_id);
-            });
-        }
+        $eventos = $query->paginate(25)->withQueryString();
 
-        // Filtrar solo casos finalizados según el requerimiento: "bitacora completa de los casos ya finalizados"
-        // Hacemos que por defecto muestre finalizados, pero si se busca un radicado específico lo muestre todo para evitar confusión,
-        // o lo dejamos siempre forzado a finalizados. Forzaremos a finalizados si no hay búsqueda directa, o simplemente lo dejamos global con un scope.
-        // Lo dejaremos forzado a finalizados como dice la instrucción, a menos que el usuario sea el afectado directo.
-        $query->whereHas('caso', function($q) {
-            $q->where('estado', 'Finalizado');
-        });
+        $acciones = Bitacora::where('caso_id', $caso->id)
+            ->select('accion')->distinct()->pluck('accion');
 
-        $eventos = $query->paginate(20)->withQueryString();
-        
-        $usuarios = User::where('activo', true)->get();
-        $tipos = TipoProceso::all();
-        $acciones = Bitacora::select('accion')->distinct()->pluck('accion');
+        $usuarios = User::whereIn('id',
+            Bitacora::where('caso_id', $caso->id)->select('user_id')->distinct()
+        )->get();
 
-        return view('historial.index', compact('eventos', 'usuarios', 'tipos', 'acciones'));
+        $totalEventos = Bitacora::where('caso_id', $caso->id)->count();
+
+        return view('historial.show', compact('caso', 'eventos', 'acciones', 'usuarios', 'totalEventos'));
     }
 
     /**
@@ -68,6 +91,10 @@ class HistorialController extends Controller
     public function exportarExcel(Request $request)
     {
         $query = Bitacora::with(['caso.tipo', 'usuario.role'])->latest();
+
+        if ($request->filled('caso_id')) {
+            $query->where('caso_id', $request->caso_id);
+        }
 
         if ($request->filled('radicado')) {
             $query->whereHas('caso', function($q) use ($request) {
@@ -90,13 +117,15 @@ class HistorialController extends Controller
             });
         }
         
-        $query->whereHas('caso', function($q) {
-            $q->where('estado', 'Finalizado');
-        });
+        if (!$request->filled('caso_id')) {
+            $query->whereHas('caso', function($q) {
+                $q->where('estado', 'Finalizado');
+            });
+        }
 
         $eventos = $query->get();
 
-        $filename = "historial_global_" . date('Ymd_His') . ".csv";
+        $filename = "historial_" . ($request->caso_id ? "caso_{$request->caso_id}_" : "global_") . date('Ymd_His') . ".csv";
 
         $headers = [
             "Content-type"        => "text/csv",
@@ -137,6 +166,10 @@ class HistorialController extends Controller
     {
         $query = Bitacora::with(['caso.tipo', 'usuario.role'])->latest();
 
+        if ($request->filled('caso_id')) {
+            $query->where('caso_id', $request->caso_id);
+        }
+
         if ($request->filled('radicado')) {
             $query->whereHas('caso', function($q) use ($request) {
                 $q->where('radicado', 'like', '%' . $request->radicado . '%')
@@ -158,9 +191,11 @@ class HistorialController extends Controller
             });
         }
         
-        $query->whereHas('caso', function($q) {
-            $q->where('estado', 'Finalizado');
-        });
+        if (!$request->filled('caso_id')) {
+            $query->whereHas('caso', function($q) {
+                $q->where('estado', 'Finalizado');
+            });
+        }
 
         $eventos = $query->get();
 

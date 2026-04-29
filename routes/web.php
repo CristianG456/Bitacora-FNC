@@ -98,6 +98,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/historial', [HistorialController::class, 'index'])->name('historial.index');
         Route::get('/historial/exportar/excel', [HistorialController::class, 'exportarExcel'])->name('historial.exportar.excel');
         Route::get('/historial/exportar/pdf', [HistorialController::class, 'exportarPdf'])->name('historial.exportar.pdf');
+        Route::get('/historial/{caso}', [HistorialController::class, 'show'])->name('historial.show');
     });
 
 });
