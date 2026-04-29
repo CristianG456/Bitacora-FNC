@@ -209,8 +209,14 @@ body { background: #f1f5f9; min-height: 100vh; }
 
 /* ── Contenido ── */
 .page-content {
-    padding: 28px;
+    padding: 16px;
     flex: 1;
+}
+
+@media (min-width: 768px) {
+    .page-content {
+        padding: 28px;
+    }
 }
 
 /* ── Cards estadísticas ── */
@@ -442,6 +448,6 @@ body { background: #f1f5f9; min-height: 100vh; }
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
-    .sidebar { transform: translateX(-100%); }
     .main-wrapper { margin-left: 0; }
+    .top-header { padding: 0 16px; }
 }

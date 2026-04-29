@@ -5,14 +5,14 @@
 @section('content')
 
 <!-- HEADER -->
-<div class="mb-6 -mx-6 -mt-6 px-6 py-4 border-b border-gray-200 bg-white">
-    <div class="flex items-center justify-between">
-        <div>
+<div class="mb-6 -mx-4 sm:-mx-6 -mt-6 px-4 sm:px-6 py-4 border-b border-gray-200 bg-white">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between">
+        <div class="mb-3 sm:mb-0">
             <h1 class="text-2xl font-bold text-gray-900">Todos los Casos</h1>
             <p class="text-gray-500 text-sm mt-1">Gestiona y revisa todos los casos jurídicos</p>
         </div>
         @if($esAdmin)
-        <a href="{{ route('casos.crear') }}" class="btn-primary">
+        <a href="{{ route('casos.crear') }}" class="btn-primary w-full sm:w-auto justify-center">
             <i data-lucide="plus-circle" class="w-4 h-4"></i>
             Crear Nuevo Caso
         </a>
@@ -22,7 +22,7 @@
 
 <!-- FILTROS Y BÚSQUEDA -->
 <div class="bg-white p-4 rounded-lg border border-gray-200 mb-6 flex items-center gap-4">
-    <form action="{{ route('casos.index') }}" method="GET" class="flex-1 flex gap-4">
+    <form action="{{ route('casos.index') }}" method="GET" class="flex-1 flex flex-col sm:flex-row gap-4">
         
         <div class="relative flex-1">
             <i data-lucide="search" class="absolute left-3 top-2.5 text-gray-400 w-[18px] h-[18px]"></i>
@@ -31,7 +31,7 @@
                    class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm focus:bg-white focus:border-red-500 outline-none transition">
         </div>
         
-        <select name="estado" class="w-48 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm focus:bg-white focus:border-red-500 outline-none transition" onchange="this.form.submit()">
+        <select name="estado" class="w-full sm:w-48 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm focus:bg-white focus:border-red-500 outline-none transition" onchange="this.form.submit()">
             <option value="Todos" {{ request('estado') === 'Todos' ? 'selected' : '' }}>Todos</option>
             <option value="Pendiente" {{ request('estado') === 'Pendiente' ? 'selected' : '' }}>Pendiente</option>
             <option value="En proceso" {{ request('estado') === 'En proceso' ? 'selected' : '' }}>En Proceso</option>
@@ -68,17 +68,17 @@
                 {{ $caso->descripcion }}
             </p>
             
-            <div class="flex items-center gap-4 text-xs text-gray-500 font-medium">
+            <div class="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-gray-500 font-medium">
                 <span>Tipo: <span class="text-gray-700">{{ $caso->tipo?->nombre ?? 'N/A' }}</span></span>
-                <span class="text-gray-300">•</span>
+                <span class="text-gray-300 hidden sm:inline">•</span>
                 <span>Creado: <span class="text-gray-700">{{ $caso->created_at->format('d/m/Y') }}</span></span>
-                <span class="text-gray-300">•</span>
-                <span><span class="text-gray-700">{{ $caso->usuarios->count() }}</span> usuario(s) asignado(s)</span>
+                <span class="text-gray-300 hidden sm:inline">•</span>
+                <span><span class="text-gray-700">{{ $caso->usuarios->count() }}</span> usuario(s)</span>
             </div>
         </div>
         
-        <div class="flex-shrink-0">
-            <a href="{{ route('casos.show', $caso->id) }}" class="btn-secondary">
+        <div class="flex-shrink-0 w-full md:w-auto mt-2 md:mt-0">
+            <a href="{{ route('casos.show', $caso->id) }}" class="btn-secondary w-full justify-center">
                 Ver Detalles
             </a>
         </div>

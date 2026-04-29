@@ -9,12 +9,12 @@
 @section('content')
 
 <!-- HEADER -->
-<div class="mb-6 -mx-6 -mt-6 px-6 py-4 border-b border-gray-200 bg-white">
-    <div class="flex items-center gap-3 mb-2">
-        <a href="{{ route('casos.index') }}" class="text-gray-400 hover:text-gray-700 transition">
+<div class="mb-6 -mx-4 sm:-mx-6 -mt-6 px-4 sm:px-6 py-4 border-b border-gray-200 bg-white">
+    <div class="flex flex-wrap sm:flex-nowrap items-center gap-3 mb-2">
+        <a href="{{ route('casos.index') }}" class="text-gray-400 hover:text-gray-700 transition shrink-0">
             <i data-lucide="arrow-left" style="width:20px;height:20px;"></i>
         </a>
-        <h1 class="text-2xl font-bold text-gray-900">{{ $caso->radicado }}</h1>
+        <h1 class="text-xl sm:text-2xl font-bold text-gray-900 truncate">{{ $caso->radicado }}</h1>
         @php
             $badgeClass = match($caso->estado) {
                 'En proceso'  => 'bg-blue-100 text-blue-700',
@@ -23,7 +23,7 @@
                 default       => 'bg-gray-100 text-gray-700',
             };
         @endphp
-        <span class="px-2.5 py-1 rounded-md text-xs font-bold tracking-wide {{ $badgeClass }}">
+        <span class="px-2.5 py-1 rounded-md text-[10px] sm:text-xs font-bold tracking-wide shrink-0 {{ $badgeClass }}">
             {{ $caso->estado }}
         </span>
 
@@ -33,10 +33,10 @@
                 $completadas = $caso->tareas->where('estado', 'Completada')->count();
                 $todasCompletadas = ($totalTareas > 0 && $totalTareas === $completadas);
             @endphp
-            <div class="ml-auto">
+            <div class="w-full sm:w-auto sm:ml-auto mt-2 sm:mt-0">
                 <form action="{{ route('casos.finalizar', $caso->id) }}" method="POST" onsubmit="return {{ $todasCompletadas ? "confirm('¿Seguro que deseas finalizar este caso? Esta acción notificará a todos los usuarios asignados y cambiará el estado del caso.');" : "false;" }}">
                     @csrf
-                    <button type="submit" class="px-4 py-2 rounded-md font-bold text-sm transition shadow-sm flex items-center gap-2 {{ $todasCompletadas ? 'bg-[#c8828b] hover:bg-[#b11226] text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-75' }}" {{ $todasCompletadas ? '' : 'disabled' }} title="{{ $todasCompletadas ? 'Finalizar Caso' : 'Todas las tareas deben estar completadas para finalizar' }}">
+                    <button type="submit" class="w-full sm:w-auto px-4 py-2 rounded-md font-bold text-sm transition shadow-sm flex items-center justify-center gap-2 {{ $todasCompletadas ? 'bg-[#c8828b] hover:bg-[#b11226] text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-75' }}" {{ $todasCompletadas ? '' : 'disabled' }} title="{{ $todasCompletadas ? 'Finalizar Caso' : 'Todas las tareas deben estar completadas para finalizar' }}">
                         <i data-lucide="check-circle" class="icon-sm"></i>
                         Finalizar Caso
                     </button>

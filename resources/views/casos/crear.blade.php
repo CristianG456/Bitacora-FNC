@@ -3,7 +3,7 @@
 @section('content')
 
 <!-- HEADER -->
-<div class="mb-6 -mx-6 -mt-6 px-6 py-4 border-b border-gray-200">
+<div class="mb-6 -mx-4 sm:-mx-6 -mt-6 px-4 sm:px-6 py-4 border-b border-gray-200">
     <div class="flex items-center gap-2 mb-3">
         <a href="{{ route('dashboard') }}" class="text-gray-400 hover:text-gray-600">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -41,7 +41,7 @@
     @endif
 
     <!-- INFORMACIÓN DEL CASO -->
-    <div class="bg-white px-8 py-8 rounded-lg shadow-sm border border-gray-200">
+    <div class="bg-white px-4 sm:px-8 py-6 sm:py-8 rounded-lg shadow-sm border border-gray-200">
 
         <h2 class="text-base font-bold text-gray-900 mb-6 uppercase tracking-wide">
             Información del Caso
@@ -79,7 +79,7 @@
     </div>
 
     <!-- DATOS DEL SOLICITANTE -->
-    <div class="bg-white px-8 py-8 rounded-lg shadow-sm border border-gray-200">
+    <div class="bg-white px-4 sm:px-8 py-6 sm:py-8 rounded-lg shadow-sm border border-gray-200">
 
         <h2 class="text-base font-bold text-gray-900 mb-6 uppercase tracking-wide">
             Datos del Solicitante
@@ -109,7 +109,7 @@
     </div>
 
     <!-- DOCUMENTO -->
-    <div class="bg-white px-8 py-8 rounded-lg shadow-sm border border-gray-200">
+    <div class="bg-white px-4 sm:px-8 py-6 sm:py-8 rounded-lg shadow-sm border border-gray-200">
 
         <h2 class="text-base font-bold text-gray-900 mb-6 uppercase tracking-wide">
             Documento
@@ -128,7 +128,7 @@
     </div>
 
     <!-- ASIGNACIÓN DE USUARIOS Y TAREAS -->
-    <div class="bg-white px-8 py-8 rounded-lg shadow-sm border border-gray-200">
+    <div class="bg-white px-4 sm:px-8 py-6 sm:py-8 rounded-lg shadow-sm border border-gray-200">
 
         <h2 class="text-base font-bold text-gray-900 mb-6 uppercase tracking-wide">
             Asignación de Usuarios y Tareas

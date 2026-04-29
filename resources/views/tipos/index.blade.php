@@ -64,12 +64,12 @@
 @endpush
 
 @section('content')
-<div class="page-header flex justify-between items-center mb-6">
+<div class="page-header flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
     <div>
         <h1 class="text-2xl font-bold text-gray-900 mb-1">Tipos de Documento</h1>
         <p class="text-sm text-gray-500">Gestiona los tipos y subtipos de documentos del sistema</p>
     </div>
-    <button onclick="document.getElementById('modal-crear-tipo').classList.remove('hidden')" class="btn-primary flex items-center gap-2 bg-[#b11226] text-white px-4 py-2 rounded-lg hover:bg-[#8e0e1f] transition">
+    <button onclick="document.getElementById('modal-crear-tipo').classList.remove('hidden')" class="btn-primary flex items-center justify-center gap-2 bg-[#b11226] text-white px-4 py-2 rounded-lg hover:bg-[#8e0e1f] transition w-full sm:w-auto">
         <i data-lucide="plus" class="w-4 h-4"></i>
         Crear Tipo
     </button>
@@ -225,7 +225,7 @@
 
 <!-- Modal Ver Subtipos -->
 <div id="modal-ver-subtipos" class="fixed inset-0 z-50 hidden bg-gray-900 bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-[calc(100%-2rem)] md:max-w-lg overflow-hidden flex flex-col max-h-[80vh]">
         <div class="flex justify-between items-center p-4 border-b border-gray-100 shrink-0">
             <h2 class="text-lg font-bold text-gray-900" id="subtipos-title">Subtipos de: </h2>
             <button onclick="document.getElementById('modal-ver-subtipos').classList.add('hidden')" class="text-gray-400 hover:bg-gray-100 p-1.5 rounded-md transition">

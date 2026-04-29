@@ -110,6 +110,7 @@
 
     .event-meta {
         display: flex;
+        flex-wrap: wrap;
         gap: 16px;
         font-size: 12px;
         color: #6b7280;
@@ -154,17 +155,17 @@
     }
 </style>
 
-<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+<div class="page-header flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
     <div>
-        <h1>Historial Global del Sistema</h1>
-        <p>Visualización completa de la bitácora de casos finalizados</p>
+        <h1 class="text-2xl font-bold text-gray-900 mb-1">Historial Global del Sistema</h1>
+        <p class="text-sm text-gray-500">Visualización completa de la bitácora de casos finalizados</p>
     </div>
-    <div style="display: flex; gap: 12px;">
-        <a href="{{ route('historial.exportar.pdf', request()->all()) }}" target="_blank" class="btn-secondary" style="color: #b11226; border-color: #fca5a5;">
+    <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+        <a href="{{ route('historial.exportar.pdf', request()->all()) }}" target="_blank" class="btn-secondary w-full justify-center" style="color: #b11226; border-color: #fca5a5;">
             <i data-lucide="file-down" style="width:16px;height:16px;"></i>
             Exportar PDF
         </a>
-        <a href="{{ route('historial.exportar.excel', request()->all()) }}" class="btn-secondary" style="color: #16a34a; border-color: #86efac;">
+        <a href="{{ route('historial.exportar.excel', request()->all()) }}" class="btn-secondary w-full justify-center" style="color: #16a34a; border-color: #86efac;">
             <i data-lucide="sheet" style="width:16px;height:16px;"></i>
             Exportar Excel
         </a>

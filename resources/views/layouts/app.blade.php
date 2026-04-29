@@ -26,7 +26,7 @@
 <body>
 
 {{-- SIDEBAR --}}
-<aside class="sidebar">
+<aside class="sidebar transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-40 fixed">
 
     {{-- Logo --}}
     <div class="sidebar-logo">
@@ -92,9 +92,18 @@
 {{-- CONTENIDO PRINCIPAL --}}
 <div class="main-wrapper">
 
+    {{-- Overlay para móvil --}}
+    <div id="sidebar-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden" onclick="toggleSidebar()"></div>
+
     {{-- Header --}}
-    <header class="top-header">
-        <span class="header-title">Sistema de Gestión de Casos Jurídicos</span>
+    <header class="top-header flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <button onclick="toggleSidebar()" class="md:hidden text-gray-600 hover:text-gray-900 focus:outline-none">
+                <i data-lucide="menu" style="width:24px;height:24px;"></i>
+            </button>
+            <span class="header-title hidden sm:block">Sistema de Gestión de Casos Jurídicos</span>
+            <span class="header-title sm:hidden text-sm">SGCJ</span>
+        </div>
 
         <div class="header-right">
 
@@ -183,6 +192,18 @@
 
 <script>
     lucide.createIcons();
+
+    function toggleSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        
+        sidebar.classList.toggle('translate-x-0');
+        sidebar.classList.toggle('-translate-x-full');
+        
+        if (overlay) {
+            overlay.classList.toggle('hidden');
+        }
+    }
 
     function toggleNotificaciones() {
         const dropdown = document.getElementById('notif-dropdown');
