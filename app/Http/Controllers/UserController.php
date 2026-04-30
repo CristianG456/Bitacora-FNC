@@ -26,7 +26,13 @@ class UserController extends Controller
 
         $usuarios = $query->orderBy('name')->paginate(10);
 
-        return view('usuarios.index', compact('usuarios', 'search', 'estado'));
+        // Solicitudes de recuperación de contraseña pendientes (últimas 48h)
+        $solicitudesRecuperacion = \Illuminate\Support\Facades\DB::table('password_resets')
+            ->where('created_at', '>=', now()->subHours(48))
+            ->orderByDesc('created_at')
+            ->get();
+
+        return view('usuarios.index', compact('usuarios', 'search', 'estado', 'solicitudesRecuperacion'));
     }
 
     public function crear()
