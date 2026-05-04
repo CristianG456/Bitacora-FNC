@@ -20,6 +20,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+    
+    {{-- SweetAlert2 --}}
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     @stack('styles')
 </head>
 
@@ -157,31 +161,7 @@
         </div>
     </header>
 
-    {{-- Flash messages --}}
-    <div style="padding: 0 28px; padding-top: 20px;">
-        @if(session('success'))
-            <div class="alert alert-success">
-                <i data-lucide="check-circle-2" style="width:16px;height:16px;flex-shrink:0;"></i>
-                {{ session('success') }}
-            </div>
-        @endif
-        @if(session('error'))
-            <div class="alert alert-error">
-                <i data-lucide="alert-circle" style="width:16px;height:16px;flex-shrink:0;"></i>
-                {{ session('error') }}
-            </div>
-        @endif
-        @if($errors->any())
-            <div class="alert alert-error">
-                <i data-lucide="alert-triangle" style="width:16px;height:16px;flex-shrink:0;"></i>
-                <div>
-                    @foreach($errors->all() as $err)
-                        <div>{{ $err }}</div>
-                    @endforeach
-                </div>
-            </div>
-        @endif
-    </div>
+    {{-- Flash messages are handled by SweetAlert at the bottom of the file --}}
 
     {{-- Contenido de página --}}
     <main class="page-content">
@@ -253,6 +233,72 @@
             dropdown.classList.add('hidden');
         }
     });
+
+    // ─── SWEETALERT 2 PARA CONFIRMACIONES Y ALERTAS FLASH ───
+    
+    // Función global para confirmaciones de formularios
+    function confirmarAccion(event, form, titulo, texto) {
+        event.preventDefault();
+        Swal.fire({
+            title: titulo,
+            text: texto || 'Esta acción podría afectar los registros.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#b11226',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'Aceptar',
+            cancelButtonText: 'Cancelar',
+            customClass: {
+                popup: 'rounded-xl',
+                confirmButton: 'rounded-lg px-4 py-2 font-semibold',
+                cancelButton: 'rounded-lg px-4 py-2 font-semibold'
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
+    }
+
+    // Configuración de Toasts para Alertas Flash
+    const Toast = Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+        customClass: {
+            popup: 'rounded-xl shadow-lg border border-gray-100',
+        },
+        didOpen: (toast) => {
+            toast.addEventListener('mouseenter', Swal.stopTimer)
+            toast.addEventListener('mouseleave', Swal.resumeTimer)
+        }
+    });
+
+    @if(session('success'))
+        Toast.fire({
+            icon: 'success',
+            title: '¡Éxito!',
+            text: '{{ session("success") }}'
+        });
+    @endif
+
+    @if(session('error'))
+        Toast.fire({
+            icon: 'error',
+            title: 'Atención',
+            text: '{{ session("error") }}'
+        });
+    @endif
+
+    @if($errors->any())
+        Toast.fire({
+            icon: 'error',
+            title: 'Error',
+            text: '{{ $errors->first() }}'
+        });
+    @endif
 </script>
 
 @stack('scripts')

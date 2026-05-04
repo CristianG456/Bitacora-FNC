@@ -34,7 +34,7 @@
                 $todasCompletadas = ($totalTareas > 0 && $totalTareas === $completadas);
             @endphp
             <div class="w-full sm:w-auto sm:ml-auto mt-2 sm:mt-0">
-                <form action="{{ route('casos.finalizar', $caso->id) }}" method="POST" onsubmit="return {{ $todasCompletadas ? "confirm('¿Seguro que deseas finalizar este caso? Esta acción notificará a todos los usuarios asignados y cambiará el estado del caso.');" : "false;" }}">
+                <form action="{{ route('casos.finalizar', $caso->id) }}" method="POST" @if($todasCompletadas) onsubmit="confirmarAccion(event, this, '¿Finalizar caso?', 'Esta acción notificará a todos los asignados y cambiará el estado permanentemente.');" @else onsubmit="event.preventDefault();" @endif>
                     @csrf
                     <button type="submit" class="w-full sm:w-auto px-4 py-2 rounded-md font-bold text-sm transition shadow-sm flex items-center justify-center gap-2 {{ $todasCompletadas ? 'bg-[#c8828b] hover:bg-[#b11226] text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-75' }}" {{ $todasCompletadas ? '' : 'disabled' }} title="{{ $todasCompletadas ? 'Finalizar Caso' : 'Todas las tareas deben estar completadas para finalizar' }}">
                         <i data-lucide="check-circle" class="icon-sm"></i>
@@ -159,7 +159,7 @@
                         <button type="button" onclick="abrirModalReemplazo({{ $user->id }}, '{{ addslashes($user->name) }}')" class="text-gray-400 hover:text-blue-600 p-1 bg-gray-50 hover:bg-blue-50 rounded" title="Reemplazar Usuario">
                             <i data-lucide="refresh-cw" class="icon-md"></i>
                         </button>
-                        <form action="{{ route('casos.usuarios.remover', [$caso->id, $user->id]) }}" method="POST" class="inline" onsubmit="return confirm('¿Seguro que deseas desvincular a este usuario del caso?');">
+                        <form action="{{ route('casos.usuarios.remover', [$caso->id, $user->id]) }}" method="POST" class="inline" onsubmit="confirmarAccion(event, this, '¿Desvincular usuario?', 'El usuario dejará de tener acceso a este caso, pero sus tareas pasadas se conservarán.');">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="text-red-400 hover:text-red-600 p-1 bg-red-50 rounded" title="Remover Usuario">
@@ -236,7 +236,7 @@
                     
                     <div class="flex items-center gap-2 ml-4">
                         @if($esAdmin && $caso->estado !== 'Finalizado')
-                        <form action="{{ route('tareas.eliminar', [$caso->id, $tarea->id]) }}" method="POST" class="inline" onsubmit="return confirm('¿Seguro que deseas eliminar esta tarea?');">
+                        <form action="{{ route('tareas.eliminar', [$caso->id, $tarea->id]) }}" method="POST" class="inline" onsubmit="confirmarAccion(event, this, '¿Eliminar tarea?', 'Esta acción borrará la tarea de forma permanente.');">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="text-gray-400 hover:text-red-600 p-1.5 bg-gray-50 hover:bg-red-50 rounded transition" title="Eliminar Tarea">

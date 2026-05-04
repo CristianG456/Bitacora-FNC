@@ -10,12 +10,12 @@ class DashboardController extends Controller
     public function index()
     {
         $user  = Auth::user();
-        $esAdmin = $user->tieneAlgunRol(['Administrador', 'Juridica']);
+        $esAdmin = $user->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor']);
 
         // ─── Estadísticas de casos ─────────────────────────────────
         $baseQuery = $esAdmin
             ? Caso::query()
-            : Caso::whereHas('usuarios', fn($q) => $q->where('users.id', $user->id)->where('caso_usuario.activo', true));
+            : Caso::whereHas('usuarios', fn($q) => $q->where('users.id', $user->id));
 
         $totalCasos    = (clone $baseQuery)->count();
         $enProceso     = (clone $baseQuery)->where('estado', 'En proceso')->count();

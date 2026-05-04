@@ -11,12 +11,36 @@
             <h1 class="text-2xl font-bold text-gray-900">Usuarios del Sistema</h1>
             <p class="text-gray-500 text-sm mt-1">Gestiona los accesos y roles de los usuarios</p>
         </div>
+        @if(auth()->user()->tieneRol('Administrador'))
         <a href="{{ route('usuarios.crear') }}" class="btn-primary w-full sm:w-auto justify-center">
             <i data-lucide="user-plus" style="width:16px;height:16px;"></i>
             Crear Usuario
         </a>
+        @endif
     </div>
 </div>
+
+@if(auth()->user()->tieneRol('Administrador') && isset($solicitudesRecuperacion) && $solicitudesRecuperacion->count() > 0)
+<div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r-lg">
+    <div class="flex items-start">
+        <div class="flex-shrink-0">
+            <i data-lucide="alert-triangle" class="h-5 w-5 text-yellow-400"></i>
+        </div>
+        <div class="ml-3">
+            <h3 class="text-sm font-medium text-yellow-800">
+                Solicitudes de recuperación de contraseña (Últimas 48h)
+            </h3>
+            <div class="mt-2 text-sm text-yellow-700">
+                <ul class="list-disc pl-5 space-y-1">
+                    @foreach($solicitudesRecuperacion as $solicitud)
+                        <li>{{ $solicitud->email }} solicitó restablecer contraseña el {{ \Carbon\Carbon::parse($solicitud->created_at)->format('d/m/Y H:i') }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 <!-- FILTROS Y BÚSQUEDA -->
 <div class="bg-white p-4 rounded-lg border border-gray-200 mb-6 flex flex-col gap-4">
@@ -50,7 +74,9 @@
                     <th class="px-6 py-4">Área</th>
                     <th class="px-6 py-4">Rol</th>
                     <th class="px-6 py-4">Estado</th>
+                    @if(auth()->user()->tieneRol('Administrador'))
                     <th class="px-6 py-4 text-right">Acciones</th>
+                    @endif
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -97,6 +123,7 @@
                             </span>
                         @endif
                     </td>
+                    @if(auth()->user()->tieneRol('Administrador'))
                     <td class="px-6 py-4 text-right">
                         <div class="flex items-center justify-end gap-2">
                             <a href="{{ route('usuarios.editar', $user->id) }}" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition" title="Editar">
@@ -104,7 +131,7 @@
                             </a>
                             
                             @if(auth()->id() !== $user->id)
-                            <form action="{{ route('usuarios.estado', $user->id) }}" method="POST" class="inline-block" onsubmit="return confirm('¿Seguro que deseas cambiar el estado de este usuario?');">
+                            <form action="{{ route('usuarios.estado', $user->id) }}" method="POST" class="inline-block" onsubmit="confirmarAccion(event, this, '¿Cambiar estado del usuario?', 'Si lo desactivas, no podrá acceder al sistema.');">
                                 @csrf
                                 <button type="submit" class="p-1.5 text-gray-400 {{ $user->activo ? 'hover:text-red-600 hover:bg-red-50' : 'hover:text-green-600 hover:bg-green-50' }} rounded transition" title="{{ $user->activo ? 'Desactivar' : 'Activar' }}">
                                     <i data-lucide="power" style="width:16px;height:16px;"></i>
@@ -113,6 +140,7 @@
                             @endif
                         </div>
                     </td>
+                    @endif
                 </tr>
                 @endforeach
             </tbody>

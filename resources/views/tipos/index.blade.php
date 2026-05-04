@@ -70,7 +70,7 @@
                             <button onclick="abrirModalEditarTipo({{ $tipo->id }}, '{{ addslashes($tipo->nombre) }}', '{{ $tipo->codigo }}', '{{ addslashes($tipo->descripcion) }}')" class="p-1.5 text-gray-400 hover:text-blue-600 border border-transparent hover:border-blue-100 hover:bg-blue-50 rounded-md transition" title="Editar">
                                 <i data-lucide="pencil" class="w-4 h-4"></i>
                             </button>
-                            <form action="{{ route('tipos.estado', $tipo->id) }}" method="POST" class="inline" onsubmit="return confirm('¿Seguro que deseas cambiar el estado de este tipo de documento?');">
+                            <form action="{{ route('tipos.estado', $tipo->id) }}" method="POST" class="inline" onsubmit="confirmarAccion(event, this, '¿Cambiar estado?', 'Esto afectará la disponibilidad de este tipo en nuevos casos.');">
                                 @csrf
                                 <button type="submit" class="p-1.5 {{ $tipo->activo ? 'text-gray-400 hover:text-orange-600 hover:bg-orange-50' : 'text-gray-400 hover:text-green-600 hover:bg-green-50' }} rounded-md transition border border-transparent" title="{{ $tipo->activo ? 'Desactivar' : 'Activar' }}">
                                     <i data-lucide="{{ $tipo->activo ? 'power-off' : 'check-circle' }}" class="w-4 h-4"></i>

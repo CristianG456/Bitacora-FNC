@@ -2,26 +2,29 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreCasoRequest;
 use App\Models\Bitacora;
 use App\Models\Caso;
+use App\Models\Notificacion;
 use App\Models\Solicitante;
-use App\Models\TipoProceso;
 use App\Models\SubtipoProceso;
+use App\Models\Tarea;
+use App\Models\TipoProceso;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use App\Models\Notificacion;
 
 class CasoController extends Controller
 {
     public function index(Request $request)
     {
         $user = Auth::user();
-        $esAdmin = $user->tieneAlgunRol(['Administrador', 'Juridica']);
+        $esAdmin = $user->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor']);
 
         $query = $esAdmin
             ? Caso::query()
-            : Caso::whereHas('usuarios', fn($q) => $q->where('users.id', $user->id)->where('caso_usuario.activo', true));
+            : Caso::whereHas('usuarios', fn($q) => $q->where('users.id', $user->id));
 
         // Búsqueda
         if ($search = $request->input('search')) {
@@ -49,11 +52,11 @@ class CasoController extends Controller
     public function show(Caso $caso)
     {
         $user = Auth::user();
-        $esAdmin = $user->tieneAlgunRol(['Administrador', 'Juridica']);
+        $esAdmin = $user->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor']);
 
         // Autorización
         if (!$esAdmin) {
-            $asignado = $caso->usuarios()->where('users.id', $user->id)->wherePivot('activo', true)->exists();
+            $asignado = $caso->usuarios()->where('users.id', $user->id)->exists();
             if (!$asignado) {
                 abort(403, 'No tienes acceso a este caso.');
             }
@@ -62,7 +65,7 @@ class CasoController extends Controller
             if ($caso->estado === 'Pendiente') {
                 $caso->update(['estado' => 'En proceso']);
                 
-                \App\Models\Bitacora::registrar(
+                Bitacora::registrar(
                     modulo: 'Casos',
                     accion: 'Cambio de Estado',
                     descripcion: "El caso pasó automáticamente a En proceso tras la revisión del usuario asignado ({$user->name}).",
@@ -90,7 +93,7 @@ class CasoController extends Controller
         return view('casos.crear', compact('tipos'));
     }
 
-    public function guardar(\App\Http\Requests\StoreCasoRequest $request)
+    public function guardar(StoreCasoRequest $request)
     {
         $data = $request->validated();
 
@@ -205,7 +208,7 @@ class CasoController extends Controller
             'caso'
         );
 
-        $usuario = \App\Models\User::find($userId);
+        $usuario = User::find($userId);
 
         Bitacora::registrar(
             modulo: 'Casos',
@@ -219,7 +222,7 @@ class CasoController extends Controller
         return redirect()->back()->with('success', 'Usuario asignado correctamente.');
     }
 
-    public function removerUsuario(Caso $caso, \App\Models\User $usuario)
+    public function removerUsuario(Caso $caso, User $usuario)
     {
         // En lugar de hacer detach, cambiamos activo a false para no perder el historial de tareas
         $caso->usuarios()->updateExistingPivot($usuario->id, ['activo' => false]);
@@ -236,14 +239,14 @@ class CasoController extends Controller
         return redirect()->back()->with('success', 'Usuario removido del caso correctamente.');
     }
 
-    public function reemplazarUsuario(Request $request, Caso $caso, \App\Models\User $usuario)
+    public function reemplazarUsuario(Request $request, Caso $caso, User $usuario)
     {
         $request->validate([
             'nuevo_user_id' => 'required|exists:users,id|different:'.$usuario->id
         ]);
 
         $nuevoUsuarioId = $request->input('nuevo_user_id');
-        $nuevoUsuario = \App\Models\User::find($nuevoUsuarioId);
+        $nuevoUsuario = User::find($nuevoUsuarioId);
 
         DB::transaction(function () use ($caso, $usuario, $nuevoUsuarioId, $nuevoUsuario) {
             // 1. Asignar nuevo usuario si no existe o reactivarlo
@@ -266,7 +269,7 @@ class CasoController extends Controller
             );
 
             // 2. Transferir todas las tareas del caso del usuario viejo al nuevo
-            \App\Models\Tarea::where('caso_id', $caso->id)
+            Tarea::where('caso_id', $caso->id)
                 ->where('user_id', $usuario->id)
                 ->update(['user_id' => $nuevoUsuarioId]);
 

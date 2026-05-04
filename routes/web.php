@@ -35,9 +35,12 @@ Route::middleware(['auth'])->group(function () {
     // Usuarios API (búsqueda)
     Route::get('/usuarios/buscar', [UserController::class, 'buscar'])->name('usuarios.buscar');
 
-    //  USUARIOS (Solo Administrador) 
-    Route::middleware(['role:Administrador'])->group(function () {
+    //  USUARIOS (Administrador y Jurídica solo vista)
+    Route::middleware(['role:Administrador,Juridica'])->group(function () {
         Route::get('/usuarios', [UserController::class, 'index'])->name('usuarios.index');
+    });
+
+    Route::middleware(['role:Administrador'])->group(function () {
         Route::get('/usuarios/crear', [UserController::class, 'crear'])->name('usuarios.crear');
         Route::post('/usuarios', [UserController::class, 'guardar'])->name('usuarios.guardar');
         Route::get('/usuarios/{usuario}/editar', [UserController::class, 'editar'])->name('usuarios.editar');
@@ -93,8 +96,8 @@ Route::middleware(['auth'])->group(function () {
             ->name('tareas.eliminar');
     });
 
-    // HISTORIAL GLOBAL (Solo Administrador y Juridica)
-    Route::middleware(['role:Administrador,Juridica'])->group(function () {
+    // HISTORIAL GLOBAL (Solo Administrador, Juridica y Consultor)
+    Route::middleware(['role:Administrador,Juridica,Consultor'])->group(function () {
         Route::get('/historial', [HistorialController::class, 'index'])->name('historial.index');
         Route::get('/historial/exportar/excel', [HistorialController::class, 'exportarExcel'])->name('historial.exportar.excel');
         Route::get('/historial/exportar/pdf', [HistorialController::class, 'exportarPdf'])->name('historial.exportar.pdf');
