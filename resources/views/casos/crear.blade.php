@@ -205,35 +205,45 @@ const resultsDropdown = document.createElement('div');
 resultsDropdown.className = 'absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg hidden max-h-60 overflow-y-auto';
 searchInput.parentNode.appendChild(resultsDropdown);
 
+function fetchUsers(query) {
+    fetch(`/usuarios/buscar?q=${encodeURIComponent(query)}`)
+        .then(res => res.json())
+        .then(data => {
+            resultsDropdown.innerHTML = '';
+            if (data.length > 0) {
+                data.forEach(user => {
+                    const item = document.createElement('div');
+                    item.className = 'px-4 py-2 cursor-pointer hover:bg-gray-100 text-sm text-gray-800';
+                    item.textContent = `${user.name} (${user.email})`;
+                    item.onclick = () => addUser(user);
+                    resultsDropdown.appendChild(item);
+                });
+                resultsDropdown.classList.remove('hidden');
+            } else {
+                resultsDropdown.innerHTML = '<div class="px-4 py-2 text-sm text-gray-500">No se encontraron usuarios</div>';
+                resultsDropdown.classList.remove('hidden');
+            }
+        });
+}
+
+searchInput.addEventListener('click', function() {
+    if (resultsDropdown.classList.contains('hidden')) {
+        fetchUsers(this.value);
+    }
+});
+
+searchInput.addEventListener('focus', function() {
+    if (resultsDropdown.classList.contains('hidden')) {
+        fetchUsers(this.value);
+    }
+});
+
 searchInput.addEventListener('input', function() {
     clearTimeout(searchTimeout);
     const query = this.value;
-    
-    if (query.length < 2) {
-        resultsDropdown.innerHTML = '';
-        resultsDropdown.classList.add('hidden');
-        return;
-    }
 
     searchTimeout = setTimeout(() => {
-        fetch(`/usuarios/buscar?q=${encodeURIComponent(query)}`)
-            .then(res => res.json())
-            .then(data => {
-                resultsDropdown.innerHTML = '';
-                if (data.length > 0) {
-                    data.forEach(user => {
-                        const item = document.createElement('div');
-                        item.className = 'px-4 py-2 cursor-pointer hover:bg-gray-100 text-sm text-gray-800';
-                        item.textContent = `${user.name} (${user.email})`;
-                        item.onclick = () => addUser(user);
-                        resultsDropdown.appendChild(item);
-                    });
-                    resultsDropdown.classList.remove('hidden');
-                } else {
-                    resultsDropdown.innerHTML = '<div class="px-4 py-2 text-sm text-gray-500">No se encontraron usuarios</div>';
-                    resultsDropdown.classList.remove('hidden');
-                }
-            });
+        fetchUsers(query);
     }, 300);
 });
 

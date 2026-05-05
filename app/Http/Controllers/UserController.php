@@ -97,16 +97,23 @@ class UserController extends Controller
     {
         $query = $request->input('q');
 
-        if (!$query) {
-            return response()->json([]);
+        $users = User::select('id', 'name', 'email')->where('activo', true);
+
+        // Ocultar administradores si el usuario actual no es administrador
+        if (!auth()->user()->tieneRol('Administrador')) {
+            $users->whereDoesntHave('role', function ($q) {
+                $q->where('nombre', 'Administrador');
+            });
         }
 
-        $usuarios = User::where('name', 'LIKE', "%{$query}%")
-            ->orWhere('email', 'LIKE', "%{$query}%")
-            ->select('id', 'name', 'email')
-            ->where('activo', true)
-            ->limit(10)
-            ->get();
+        if ($query) {
+            $users->where(function($q) use ($query) {
+                $q->where('name', 'LIKE', "%{$query}%")
+                  ->orWhere('email', 'LIKE', "%{$query}%");
+            });
+        }
+
+        $usuarios = $users->limit(20)->get();
 
         return response()->json($usuarios);
     }
