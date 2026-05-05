@@ -159,8 +159,10 @@
     <div class="text-sm text-gray-600 flex items-center gap-4">
         <span class="font-semibold">Total de usuarios: {{ \App\Models\User::count() }}</span>
         <span class="hidden md:inline">|</span>
+        @if(auth()->user()->tieneRol('Administrador'))
         <span class="hidden md:inline">Administradores: {{ \App\Models\User::whereHas('role', fn($q) => $q->where('nombre', 'Administrador'))->count() }}</span>
         <span class="hidden md:inline">|</span>
+        @endif
         <span class="hidden md:inline">Jurídica: {{ \App\Models\User::whereHas('role', fn($q) => $q->where('nombre', 'Juridica'))->count() }}</span>
         <span class="hidden md:inline">|</span>
         <span class="hidden md:inline">Usuarios: {{ \App\Models\User::whereHas('role', fn($q) => $q->where('nombre', 'Usuario'))->count() }}</span>

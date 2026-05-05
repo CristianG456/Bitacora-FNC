@@ -54,14 +54,25 @@ class CasoController extends Controller
         $user = Auth::user();
         $esAdmin = $user->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor']);
 
+        // Obtener la asignación del usuario actual
+        $usuarioAsignado = $caso->usuarios()->where('users.id', $user->id)->first();
+
         // Autorización
         if (!$esAdmin) {
-            $asignado = $caso->usuarios()->where('users.id', $user->id)->exists();
-            if (!$asignado) {
+            if (!$usuarioAsignado || !$usuarioAsignado->pivot->activo) {
                 abort(403, 'No tienes acceso a este caso.');
             }
+        }
 
-            // Cambio automático de estado a En proceso
+        // Si el usuario está asignado al caso (sea admin o no)
+        if ($usuarioAsignado && $usuarioAsignado->pivot->activo) {
+            
+            // 1. Cambiar estado del usuario en el caso (Pivot)
+            if ($usuarioAsignado->pivot->estado === 'Pendiente') {
+                $caso->usuarios()->updateExistingPivot($user->id, ['estado' => 'En proceso']);
+            }
+
+            // 2. Cambio automático de estado a En proceso del CASO
             if ($caso->estado === 'Pendiente') {
                 $caso->update(['estado' => 'En proceso']);
                 

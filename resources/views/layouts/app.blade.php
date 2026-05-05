@@ -66,23 +66,25 @@
         </a>
         @endif
 
-        @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica']))
+        @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor']))
         <span class="nav-section-title">Gestión</span>
+        @endif
 
+        @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica']))
         <a href="{{ route('tipos.index') }}" class="nav-item {{ request()->routeIs('tipos.*') ? 'active' : '' }}">
             <i data-lucide="file-text" style="width:18px;height:18px;"></i>
             Tipos de Documento
         </a>
         @endif
 
-        @if(auth()->user()?->tieneAlgunRol(['Administrador']))
+        @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica']))
         <a href="{{ route('usuarios.index') }}" class="nav-item {{ request()->routeIs('usuarios.*') ? 'active' : '' }}">
             <i data-lucide="users" style="width:18px;height:18px;"></i>
             Usuarios
         </a>
         @endif
 
-        @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica']))
+        @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor']))
         <a href="{{ route('historial.index') }}" class="nav-item {{ request()->routeIs('historial.*') ? 'active' : '' }}">
             <i data-lucide="clock" style="width:18px;height:18px;"></i>
             Historial Global

@@ -24,6 +24,12 @@ class UserController extends Controller
             $query->where('activo', $estado === 'Activos' ? 1 : 0);
         }
 
+        if (!auth()->user()->tieneRol('Administrador')) {
+            $query->whereDoesntHave('role', function ($q) {
+                $q->where('nombre', 'Administrador');
+            });
+        }
+
         $usuarios = $query->orderBy('name')->paginate(10);
 
         // Solicitudes de recuperación de contraseña pendientes (últimas 48h)

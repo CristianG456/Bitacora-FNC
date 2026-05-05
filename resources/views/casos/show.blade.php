@@ -346,6 +346,12 @@
                             <span class="text-[10px] text-gray-400 whitespace-nowrap ml-2">{{ $bitacora->created_at->format('d M, H:i \h') }}</span>
                         </div>
                         <p class="text-xs text-gray-600 truncate">{{ $bitacora->descripcion }}</p>
+                        @if(!empty($bitacora->metadata) && isset($bitacora->metadata['observacion']))
+                            <div class="mt-1.5 p-1.5 bg-yellow-50/50 border border-yellow-100 rounded text-gray-700 italic text-[10px] truncate">
+                                <span class="font-semibold text-gray-900 not-italic"><i data-lucide="message-square" style="width:10px;height:10px;display:inline;margin-top:-2px;"></i> Obs:</span> 
+                                {{ $bitacora->metadata['observacion'] }}
+                            </div>
+                        @endif
                     </div>
 
                 </div>

@@ -152,8 +152,15 @@
                         </div>
                     </div>
                     
-                    <div class="event-desc">
+                    <div class="event-desc text-sm mt-1">
                         {{ $evento->descripcion }}
+                        
+                        @if(!empty($evento->metadata) && isset($evento->metadata['observacion']))
+                            <div class="mt-2 p-2.5 bg-yellow-50/50 border border-yellow-100 rounded text-gray-700 italic text-xs">
+                                <span class="font-semibold text-gray-900 not-italic block mb-0.5"><i data-lucide="message-square" style="width:12px;height:12px;display:inline;margin-top:-2px;"></i> Observación:</span> 
+                                {{ $evento->metadata['observacion'] }}
+                            </div>
+                        @endif
                     </div>
                     
                     <div class="event-meta">
