@@ -52,11 +52,18 @@ class UserController extends Controller
         $data = $request->validated();
         $data['password'] = bcrypt($data['password']);
         $data['activo'] = $request->has('activo');
+        $data['password_change_required'] = true;
 
-        User::create($data);
+        $user = User::create($data);
+
+        try {
+            \Illuminate\Support\Facades\Mail::to($user->email)->send(new \App\Mail\UserCreatedMail($user, $request->password));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error enviando correo de creación de usuario a ' . $user->email . ': ' . $e->getMessage());
+        }
 
         return redirect()->route('usuarios.index')
-            ->with('success', 'Usuario creado correctamente.');
+            ->with('success', 'Usuario creado correctamente y correo enviado.');
     }
 
     public function editar(User $usuario)
@@ -91,6 +98,18 @@ class UserController extends Controller
 
         return redirect()->back()
             ->with('success', 'Estado del usuario actualizado correctamente.');
+    }
+
+    public function eliminar(User $usuario)
+    {
+        // Evitar que el usuario se elimine a sí mismo
+        if (auth()->id() === $usuario->id) {
+            return redirect()->back()->with('error', 'No puedes eliminar tu propio usuario.');
+        }
+
+        $usuario->delete();
+
+        return redirect()->back()->with('success', 'Usuario eliminado correctamente.');
     }
 
     public function buscar(Request $request)

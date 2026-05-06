@@ -11,9 +11,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Alias de middleware de roles
+        // Alias de middleware de roles y contraseñas
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
+            'force_password_change' => \App\Http\Middleware\ForcePasswordChange::class,
         ]);
 
         $middleware->web(append: [

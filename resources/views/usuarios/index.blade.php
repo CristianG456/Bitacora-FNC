@@ -131,9 +131,17 @@
                             </a>
                             
                             @if(auth()->id() !== $user->id)
+                            <form action="{{ route('usuarios.eliminar', $user->id) }}" method="POST" class="inline-block" onsubmit="confirmarAccion(event, this, '¿Eliminar usuario?', 'Esta acción no se puede deshacer y el usuario perderá acceso al sistema.');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition" title="Eliminar">
+                                    <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
+                                </button>
+                            </form>
+
                             <form action="{{ route('usuarios.estado', $user->id) }}" method="POST" class="inline-block" onsubmit="confirmarAccion(event, this, '¿Cambiar estado del usuario?', 'Si lo desactivas, no podrá acceder al sistema.');">
                                 @csrf
-                                <button type="submit" class="p-1.5 text-gray-400 {{ $user->activo ? 'hover:text-red-600 hover:bg-red-50' : 'hover:text-green-600 hover:bg-green-50' }} rounded transition" title="{{ $user->activo ? 'Desactivar' : 'Activar' }}">
+                                <button type="submit" class="p-1.5 text-gray-400 {{ $user->activo ? 'hover:text-orange-600 hover:bg-orange-50' : 'hover:text-green-600 hover:bg-green-50' }} rounded transition" title="{{ $user->activo ? 'Desactivar' : 'Activar' }}">
                                     <i data-lucide="power" style="width:16px;height:16px;"></i>
                                 </button>
                             </form>

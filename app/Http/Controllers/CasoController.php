@@ -184,8 +184,21 @@ class CasoController extends Controller
             return $caso;
         });
 
+        // Loop para enviar correos DESPUÉS de hacer commit a la base de datos
+        if (!empty($data['usuarios'])) {
+            foreach ($data['usuarios'] as $userId) {
+                try {
+                    $usuario = User::find($userId);
+                    $tareasParaCorreo = $data['tareas'][$userId] ?? [];
+                    \Illuminate\Support\Facades\Mail::to($usuario->email)->send(new \App\Mail\CaseAssignedMail($caso, $usuario, $tareasParaCorreo));
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Error enviando correo de asignación de caso a ' . $usuario->email . ': ' . $e->getMessage());
+                }
+            }
+        }
+
         return redirect()->route('casos.show', $caso->id)
-            ->with('success', "Caso {$caso->radicado} creado correctamente.");
+            ->with('success', "Caso {$caso->radicado} creado correctamente y notificaciones por correo enviadas.");
     }
 
     public function asignarUsuario(Request $request, Caso $caso)
@@ -230,7 +243,13 @@ class CasoController extends Controller
             usuarioAfectado: $usuario->id
         );
 
-        return redirect()->back()->with('success', 'Usuario asignado correctamente.');
+        try {
+            \Illuminate\Support\Facades\Mail::to($usuario->email)->send(new \App\Mail\CaseAssignedMail($caso, $usuario, []));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error enviando correo de asignación de caso a ' . $usuario->email . ': ' . $e->getMessage());
+        }
+
+        return redirect()->back()->with('success', 'Usuario asignado correctamente y notificado por correo.');
     }
 
     public function removerUsuario(Caso $caso, User $usuario)

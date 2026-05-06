@@ -20,6 +20,7 @@ class User extends Authenticatable
         'area',
         'rol_id',
         'activo',
+        'password_change_required',
     ];
 
     protected $hidden = [
@@ -30,9 +31,10 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'password'          => 'hashed',
-            'activo'            => 'boolean',
+            'email_verified_at'        => 'datetime',
+            'password'                 => 'hashed',
+            'activo'                   => 'boolean',
+            'password_change_required' => 'boolean',
         ];
     }
 

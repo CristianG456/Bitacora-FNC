@@ -25,6 +25,12 @@ Route::match(['get', 'post'], '/logout', [LoginController::class, 'logout'])->na
 
 Route::middleware(['auth'])->group(function () {
 
+    // Cambio de contraseña obligatorio
+    Route::get('/cambiar-password', [\App\Http\Controllers\Auth\PasswordChangeController::class, 'show'])->name('password.change.form');
+    Route::post('/cambiar-password', [\App\Http\Controllers\Auth\PasswordChangeController::class, 'update'])->name('password.change.update');
+
+    Route::middleware(['force_password_change'])->group(function () {
+
     // Dashboard (todos los roles autenticados)
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
@@ -46,6 +52,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/usuarios/{usuario}/editar', [UserController::class, 'editar'])->name('usuarios.editar');
         Route::put('/usuarios/{usuario}', [UserController::class, 'actualizar'])->name('usuarios.actualizar');
         Route::post('/usuarios/{usuario}/estado', [UserController::class, 'cambiarEstado'])->name('usuarios.estado');
+        Route::delete('/usuarios/{usuario}', [UserController::class, 'eliminar'])->name('usuarios.eliminar');
     });
 
     //  TIPOS DE PROCESO (Solo Administrador y Juridica)
@@ -103,5 +110,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/historial/exportar/pdf', [HistorialController::class, 'exportarPdf'])->name('historial.exportar.pdf');
         Route::get('/historial/{caso}', [HistorialController::class, 'show'])->name('historial.show');
     });
+
+    }); // Cierre de force_password_change
 
 });
