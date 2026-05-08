@@ -14,7 +14,7 @@ class RoleMiddleware
      *
      * Uso en rutas: ->middleware('role:Administrador,Juridica')
      *
-     * @param  Closure(Request): (Response)  $next
+     * @param  Closure(Request): (Response) 
      */
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {
@@ -33,7 +33,7 @@ class RoleMiddleware
                 ->with('error', 'Tu cuenta ha sido desactivada. Contacta al administrador.');
         }
 
-        // 3. Verificar rol (si no se pasan roles, sólo se valida auth)
+        // 3. Verificar rol 
         if (!empty($roles)) {
             $rolUsuario = $user->role?->nombre;
 
