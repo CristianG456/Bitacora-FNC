@@ -26,8 +26,9 @@ class Bitacora extends Model
     ];
 
     protected $casts = [
-        'metadata'   => 'array',
-        'created_at' => 'datetime',
+        'descripcion' => 'encrypted',
+        'metadata'    => 'encrypted:array',
+        'created_at'  => 'datetime',
     ];
 
     // ─── Relaciones ────────────────────────────────────────────────

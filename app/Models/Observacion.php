@@ -19,6 +19,7 @@ class Observacion extends Model
 
     protected $casts = [
         'created_at' => 'datetime',
+        'contenido'  => 'encrypted',
     ];
 
     public function tarea()

@@ -22,6 +22,7 @@ class Tarea extends Model
     ];
 
     protected $casts = [
+        'descripcion'  => 'encrypted',
         'fecha_inicio' => 'datetime',
         'fecha_fin'    => 'datetime',
     ];

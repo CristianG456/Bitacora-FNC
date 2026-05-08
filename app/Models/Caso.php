@@ -26,9 +26,10 @@ class Caso extends Model
     ];
 
     protected $casts = [
-        'fecha_inicio' => 'date',
-        'fecha_fin'    => 'date',
-        'link_drive'   => 'encrypted',
+        'fecha_inicio'        => 'date',
+        'fecha_fin'           => 'date',
+        'link_drive'          => 'encrypted',
+        'observacion_inicial' => 'encrypted',
     ];
 
     // ─── Relaciones ────────────────────────────────────────────────
