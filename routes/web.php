@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CasoController;
 use App\Http\Controllers\TareaController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\ConfiguracionRespaldoController;
 use App\Http\Controllers\HistorialController;
 use App\Http\Controllers\TipoProcesoController;
 
@@ -109,6 +110,14 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/historial/exportar/excel', [HistorialController::class, 'exportarExcel'])->name('historial.exportar.excel');
         Route::get('/historial/exportar/pdf', [HistorialController::class, 'exportarPdf'])->name('historial.exportar.pdf');
         Route::get('/historial/{caso}', [HistorialController::class, 'show'])->name('historial.show');
+    });
+
+    // RESPALDOS (Solo Administrador)
+    Route::middleware(['role:Administrador'])->group(function () {
+        Route::get('/respaldos', [ConfiguracionRespaldoController::class, 'index'])->name('respaldos.index');
+        Route::post('/respaldos', [ConfiguracionRespaldoController::class, 'storeOrUpdate'])->name('respaldos.store');
+        Route::post('/respaldos/probar', [ConfiguracionRespaldoController::class, 'probarSmtp'])->name('respaldos.probar');
+        Route::post('/respaldos/manual', [ConfiguracionRespaldoController::class, 'respaldoManual'])->name('respaldos.manual');
     });
 
     }); // Cierre de force_password_change

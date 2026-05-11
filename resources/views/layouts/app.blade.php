@@ -91,6 +91,13 @@
         </a>
         @endif
 
+        @if(auth()->user()?->tieneAlgunRol(['Administrador']))
+        <a href="{{ route('respaldos.index') }}" class="nav-item {{ request()->routeIs('respaldos.*') ? 'active' : '' }}">
+            <i data-lucide="database" style="width:18px;height:18px;"></i>
+            Respaldos
+        </a>
+        @endif
+
     </nav>
 
 </aside>
