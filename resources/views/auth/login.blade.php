@@ -2,81 +2,105 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Login</title>
+    <title>Acceso Institucional - Sistema de Bitácoras</title>
     
     <link rel="icon" href="{{ asset('imagenes/federacion cafeteros logo.png') }}" type="image/png">
 
     <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
 </head>
 
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+<body class="bg-white min-h-screen flex">
 
-    <div class="w-full max-w-md bg-white p-8 rounded-xl shadow">
+    <!-- Lado Izquierdo (Rojo) -->
+    <div class="hidden lg:flex lg:w-1/2 bg-[#9F1932] relative overflow-hidden flex-col justify-end p-16 text-white shadow-[10px_0_20px_rgba(0,0,0,0.1)] z-10">
+        <!-- Círculos decorativos (Simulando la imagen) -->
+        <div class="absolute top-[10%] left-[5%] w-[450px] h-[450px] rounded-full bg-white/5 pointer-events-none"></div>
+        <div class="absolute bottom-[10%] left-[25%] w-[500px] h-[500px] rounded-full bg-white/5 pointer-events-none"></div>
 
-        <!-- LOGO -->
-        <div class="flex flex-col items-center mb-6">
-
-            <img src="{{ asset('imagenes/federacion cafeteros logo.png') }}" 
-                alt="Logo"
-                class="w-28 h-28 object-contain bg-gray-50 p-3 rounded-xl shadow-sm mb-4">
-
-            <h1 class="text-xl font-bold text-red-700 text-center leading-tight">
-                Sistema de Gestión de Casos Jurídicos
-            </h1>
-
-            <p class="text-gray-500 text-sm mt-2 text-center">
-                Ingresa tus credenciales para continuar
+        <div class="relative z-10 mb-16">
+            <span class="inline-block px-4 py-1.5 rounded-full bg-white/20 text-xs font-semibold mb-6 tracking-wide">
+                Sistema Institucional
+            </span>
+            <h1 class="text-5xl font-bold mb-6 tracking-tight leading-tight">Sistema de<br>Bitácoras</h1>
+            <p class="text-[15px] text-white/80 max-w-md leading-relaxed font-light">
+                Comité Departamental de Cafeteros del Tolima —<br>
+                Plataforma de registro y seguimiento de casos y tareas jurídicas.
             </p>
-
         </div>
+    </div>
 
-        @if(session('success'))
-            <div class="bg-green-100 text-green-700 p-2 rounded mb-3 text-sm">
-                {{ session('success') }}
-            </div>
-        @endif
-
-        @if($errors->any())
-            <div class="bg-red-100 text-red-700 p-2 rounded mb-3 text-sm">
-                {{ $errors->first() }}
-            </div>
-        @endif
-
-        <!-- FORMULARIO -->
-        <form method="POST" action="{{ route('login.post') }}" autocomplete="off">
-        @csrf
-
-            <!-- Email -->
-            <div class="mb-4">
-                <label class="block text-sm mb-1">Correo electrónico</label>
-                <input type="email" name="email"
-                    class="w-full p-3 border rounded-lg bg-gray-100"
-                    placeholder="usuario@cafedecolombia.com"
-                    autocomplete="off">
+    <!-- Lado Derecho (Formulario) -->
+    <div class="w-full lg:w-1/2 flex flex-col justify-center items-center p-8 bg-white relative">
+        <div class="w-full max-w-sm">
+            
+            <!-- Logo y Entidad -->
+            <div class="flex flex-col items-center mb-10">
+                <img src="{{ asset('imagenes/federacion cafeteros logo.png') }}" alt="Federación Nacional de Cafeteros de Colombia" class="w-40 mb-3">
+                <div class="text-center text-[#7A1525]">
+                    <h2 class="text-lg font-bold">Comité de Cafeteros</h2>
+                    <h3 class="text-md font-normal">del Tolima</h3>
+                </div>
             </div>
 
-            <!-- Password -->
-            <div class="mb-4" id="campoPassword">
-                <label class="block text-sm mb-1">Contraseña</label>
-                <input type="password" name="password"
-                    class="w-full p-3 border rounded-lg bg-gray-100">
+            <!-- Título Formulario -->
+            <div class="text-center mb-8">
+                <h1 class="text-[22px] font-bold text-gray-900 mb-1">Acceso Institucional</h1>
+                <p class="text-gray-500 text-sm">Ingresa tus credenciales para continuar</p>
             </div>
 
-            <!-- Checkbox -->
-            <div class="mb-4 flex items-center">
-                <input type="checkbox" name="recuperar" id="recuperar" class="mr-2">
-                <span class="text-sm">Solicitar recuperación de contraseña</span>
+            @if(session('success'))
+                <div class="bg-green-50 text-green-700 p-3 rounded-lg mb-4 text-sm border border-green-200 text-center">
+                    {{ session('success') }}
+                </div>
+            @endif
+
+            @if($errors->any())
+                <div class="bg-red-50 text-red-700 p-3 rounded-lg mb-4 text-sm border border-red-200 text-center">
+                    {{ $errors->first() }}
+                </div>
+            @endif
+
+            <form method="POST" action="{{ route('login.post') }}" autocomplete="off" class="space-y-5">
+                @csrf
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1.5">Correo electrónico</label>
+                    <input type="email" name="email"
+                        class="w-full p-3.5 rounded-lg bg-gray-50 border border-gray-100 focus:bg-white focus:border-[#9F1932] focus:ring-1 focus:ring-[#9F1932] outline-none transition text-sm text-gray-800 placeholder-gray-400"
+                        placeholder="nombre@cafedecolombia.com"
+                        autocomplete="off" required>
+                </div>
+
+                <div id="campoPassword">
+                    <label class="block text-xs font-semibold text-gray-700 mb-1.5">Contraseña</label>
+                    <input type="password" name="password"
+                        class="w-full p-3.5 rounded-lg bg-gray-50 border border-gray-100 focus:bg-white focus:border-[#9F1932] focus:ring-1 focus:ring-[#9F1932] outline-none transition text-sm text-gray-800 placeholder-gray-400"
+                        placeholder="••••••••">
+                </div>
+
+                <!-- Checkbox Recuperar -->
+                <div class="flex items-center pt-1">
+                    <input type="checkbox" name="recuperar" id="recuperar" class="w-4 h-4 text-[#9F1932] bg-gray-100 border-gray-300 rounded focus:ring-[#9F1932] cursor-pointer">
+                    <label for="recuperar" class="ml-2 text-xs text-gray-600 cursor-pointer hover:text-gray-900 transition">Solicitar recuperación de contraseña</label>
+                </div>
+
+                <button id="btnLogin" type="submit"
+                    class="w-full bg-[#9F1932] hover:bg-[#821328] text-white py-3.5 rounded-lg text-sm font-semibold transition shadow-sm mt-2">
+                    Ingresar al sistema
+                </button>
+            </form>
+
+            <div class="mt-16 text-center">
+                <p class="text-[11px] text-gray-400">Federación Nacional de Cafeteros de Colombia</p>
             </div>
-
-            <!-- Botón -->
-            <button id="btnLogin"
-                class="w-full bg-red-700 text-white py-3 rounded-lg font-semibold transition">
-                Iniciar sesión
-            </button>
-
-        </form>
-
+        </div>
     </div>
 
     <!-- SCRIPT -->
@@ -84,29 +108,30 @@
         const checkbox = document.getElementById('recuperar');
         const boton = document.getElementById('btnLogin');
         const campoPassword = document.getElementById('campoPassword');
+        const passwordInput = document.querySelector('input[name="password"]');
 
         checkbox.addEventListener('change', function () {
-
             if (this.checked) {
                 boton.innerText = 'Enviar solicitud';
-
-                // cambia color
-                boton.classList.remove('bg-red-700');
-                boton.classList.add('bg-gray-700');
-
-                // opcional: ocultar contraseña
+                boton.classList.remove('bg-[#9F1932]', 'hover:bg-[#821328]');
+                boton.classList.add('bg-gray-800', 'hover:bg-gray-900');
+                
                 campoPassword.style.display = 'none';
-
+                passwordInput.removeAttribute('required');
             } else {
-                boton.innerText = 'Iniciar sesión';
-
-                boton.classList.remove('bg-gray-700');
-                boton.classList.add('bg-red-700');
-
+                boton.innerText = 'Ingresar al sistema';
+                boton.classList.remove('bg-gray-800', 'hover:bg-gray-900');
+                boton.classList.add('bg-[#9F1932]', 'hover:bg-[#821328]');
+                
                 campoPassword.style.display = 'block';
+                passwordInput.setAttribute('required', 'required');
             }
-
         });
+        
+        // Ejecutar al cargar por si el navegador recuerda el checkbox
+        if(checkbox.checked) {
+            checkbox.dispatchEvent(new Event('change'));
+        }
     </script>
 
 </body>
