@@ -17,7 +17,7 @@ try {
         $config = ConfiguracionRespaldo::first();
 
         if ($config && $config->is_active) {
-            $event = Schedule::command('backup:database')->at($config->backup_time);
+            $event = Schedule::command('backup:run')->at($config->backup_time);
 
             switch ($config->backup_frequency) {
                 case 'diario':

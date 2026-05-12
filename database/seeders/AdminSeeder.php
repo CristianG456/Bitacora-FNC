@@ -17,11 +17,14 @@ class AdminSeeder extends Seeder
             throw new \Exception('Ejecuta primero RolesSeeder');
         }
 
+        $email = env('ADMIN_EMAIL', 'admin@test.com');
+        $password = env('ADMIN_PASSWORD', 'Admin123!-');
+
         User::updateOrCreate(
-            ['email' => 'admin@test.com'],
+            ['email' => $email],
             [
                 'name' => 'Administrador',
-                'password' => Hash::make('Admin123!-'),
+                'password' => Hash::make($password),
                 'rol_id' => $adminRole->id,
                 'area' => 'Dirección General',
                 'activo' => true

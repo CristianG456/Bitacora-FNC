@@ -20,6 +20,12 @@ class ConfiguracionRespaldo extends Model
         'backup_frequency',
         'backup_time',
         'backup_password',
+        'max_backups',
+        'retention_days',
+        'r2_enabled',
+        'r2_bucket',
+        'r2_path',
+        'r2_retention_days',
         'is_active',
     ];
 

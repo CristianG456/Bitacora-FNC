@@ -190,7 +190,7 @@ class CasoController extends Controller
                 try {
                     $usuario = User::find($userId);
                     $tareasParaCorreo = $data['tareas'][$userId] ?? [];
-                    \Illuminate\Support\Facades\Mail::to($usuario->email)->send(new \App\Mail\CaseAssignedMail($caso, $usuario, $tareasParaCorreo));
+                    \Illuminate\Support\Facades\Mail::to($usuario->email)->queue(new \App\Mail\CaseAssignedMail($caso, $usuario, $tareasParaCorreo));
                 } catch (\Exception $e) {
                     \Illuminate\Support\Facades\Log::error('Error enviando correo de asignación de caso a ' . $usuario->email . ': ' . $e->getMessage());
                 }
@@ -244,7 +244,7 @@ class CasoController extends Controller
         );
 
         try {
-            \Illuminate\Support\Facades\Mail::to($usuario->email)->send(new \App\Mail\CaseAssignedMail($caso, $usuario, []));
+            \Illuminate\Support\Facades\Mail::to($usuario->email)->queue(new \App\Mail\CaseAssignedMail($caso, $usuario, []));
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Error enviando correo de asignación de caso a ' . $usuario->email . ': ' . $e->getMessage());
         }

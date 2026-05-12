@@ -34,6 +34,12 @@ class StoreConfiguracionRespaldoRequest extends FormRequest
             'backup_frequency' => 'required|in:diario,semanal,mensual',
             'backup_time' => 'required|date_format:H:i',
             'backup_password' => 'nullable|string|max:255',
+            'max_backups' => 'nullable|integer|min:0',
+            'retention_days' => 'nullable|integer|min:0',
+            'r2_enabled' => 'boolean',
+            'r2_bucket' => 'nullable|string|max:255',
+            'r2_path' => 'nullable|string|max:255',
+            'r2_retention_days' => 'nullable|integer|min:0',
             'is_active' => 'boolean'
         ];
     }

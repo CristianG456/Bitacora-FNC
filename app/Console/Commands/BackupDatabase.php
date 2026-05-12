@@ -11,7 +11,7 @@ class BackupDatabase extends Command
      *
      * @var string
      */
-    protected $signature = 'backup:database';
+    protected $signature = 'backup:run {--manual}';
 
     /**
      * The console command description.
@@ -41,7 +41,8 @@ class BackupDatabase extends Command
 
             $this->info('Iniciando el proceso de respaldo...');
             
-            $backupService->runBackup($config);
+            $type = $this->option('manual') ? 'manual' : 'automatico';
+            $backupService->runBackup($config, $type);
             
             $this->info('Respaldo finalizado con éxito.');
             return Command::SUCCESS;

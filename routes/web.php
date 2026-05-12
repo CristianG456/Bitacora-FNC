@@ -114,10 +114,13 @@ Route::middleware(['auth'])->group(function () {
 
     // RESPALDOS (Solo Administrador)
     Route::middleware(['role:Administrador'])->group(function () {
-        Route::get('/respaldos', [ConfiguracionRespaldoController::class, 'index'])->name('respaldos.index');
-        Route::post('/respaldos', [ConfiguracionRespaldoController::class, 'storeOrUpdate'])->name('respaldos.store');
-        Route::post('/respaldos/probar', [ConfiguracionRespaldoController::class, 'probarSmtp'])->name('respaldos.probar');
-        Route::post('/respaldos/manual', [ConfiguracionRespaldoController::class, 'respaldoManual'])->name('respaldos.manual');
+        Route::get('respaldos', [ConfiguracionRespaldoController::class, 'index'])->name('respaldos.index');
+        Route::post('respaldos', [ConfiguracionRespaldoController::class, 'storeOrUpdate'])->name('respaldos.store');
+        Route::post('respaldos/probar', [ConfiguracionRespaldoController::class, 'probarSmtp'])->name('respaldos.probar');
+        Route::post('respaldos/probar-r2', [ConfiguracionRespaldoController::class, 'probarR2'])->name('respaldos.probar_r2');
+        Route::post('respaldos/manual', [ConfiguracionRespaldoController::class, 'respaldoManual'])->name('respaldos.manual');
+        Route::get('respaldos/descargar/{history}', [ConfiguracionRespaldoController::class, 'download'])->name('respaldos.download');
+        Route::delete('respaldos/{history}', [ConfiguracionRespaldoController::class, 'destroy'])->name('respaldos.destroy');
     });
 
     }); // Cierre de force_password_change
