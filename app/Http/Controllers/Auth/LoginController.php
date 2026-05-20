@@ -93,7 +93,7 @@ class LoginController extends Controller
 
             $request->session()->regenerate();
 
-            if (Auth::user()->password_change_required && !Auth::user()->esAdministrador()) {
+            if (Auth::user()->force_password_change) {
                 return redirect()->route('password.change.form');
             }
 

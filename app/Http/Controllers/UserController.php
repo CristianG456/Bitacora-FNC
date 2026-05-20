@@ -52,7 +52,7 @@ class UserController extends Controller
         $data = $request->validated();
         $data['password'] = bcrypt($data['password']);
         $data['activo'] = $request->has('activo');
-        $data['password_change_required'] = true;
+        $data['force_password_change'] = true;
 
         $user = User::create($data);
 
@@ -78,6 +78,7 @@ class UserController extends Controller
         
         if (!empty($data['password'])) {
             $data['password'] = bcrypt($data['password']);
+            $data['force_password_change'] = true;
         } else {
             unset($data['password']);
         }

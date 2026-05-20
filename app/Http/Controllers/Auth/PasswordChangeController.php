@@ -12,8 +12,8 @@ class PasswordChangeController extends Controller
 {
     public function show()
     {
-        // Si el usuario no requiere cambio de contraseña o es Administrador, enviarlo al dashboard
-        if (!Auth::user()->password_change_required || Auth::user()->esAdministrador()) {
+        // Si el usuario no requiere cambio de contraseña, enviarlo al dashboard
+        if (!Auth::user()->force_password_change) {
             return redirect()->route('dashboard');
         }
 
@@ -23,10 +23,17 @@ class PasswordChangeController extends Controller
     public function update(Request $request)
     {
         $request->validate([
-            'password' => 'required|string|min:8|confirmed',
+            'password' => [
+                'required',
+                'confirmed',
+                \Illuminate\Validation\Rules\Password::min(8)
+                    ->mixedCase()
+                    ->letters()
+                    ->numbers()
+                    ->symbols()
+            ],
         ], [
             'password.required' => 'La contraseña es obligatoria.',
-            'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
             'password.confirmed' => 'Las contraseñas no coinciden.',
         ]);
 
@@ -34,7 +41,7 @@ class PasswordChangeController extends Controller
         
         $user->update([
             'password' => Hash::make($request->password),
-            'password_change_required' => false,
+            'force_password_change' => false,
         ]);
 
         // Registrar en bitácora

@@ -99,40 +99,69 @@
         const matchError = document.getElementById('passwordMatchError');
         const lengthHint = document.getElementById('passwordLengthHint');
 
+        // Contenedor para indicadores de seguridad (opcional, pero sugerido para UI amigable)
+        const rules = [
+            { id: 'rule-length', regex: /.{8,}/ },
+            { id: 'rule-upper', regex: /[A-Z]/ },
+            { id: 'rule-lower', regex: /[a-z]/ },
+            { id: 'rule-number', regex: /[0-9]/ },
+            { id: 'rule-special', regex: /[^A-Za-z0-9]/ }
+        ];
+
+        // Añadir elementos HTML dinámicamente para las reglas
+        const hintContainer = document.createElement('div');
+        hintContainer.className = 'mt-2 text-xs grid grid-cols-1 md:grid-cols-2 gap-1';
+        hintContainer.innerHTML = `
+            <div id="rule-length" class="text-gray-500 flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Mínimo 8 caracteres</div>
+            <div id="rule-upper" class="text-gray-500 flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> 1 Mayúscula</div>
+            <div id="rule-lower" class="text-gray-500 flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> 1 Minúscula</div>
+            <div id="rule-number" class="text-gray-500 flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> 1 Número</div>
+            <div id="rule-special" class="text-gray-500 flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> 1 Carácter especial</div>
+        `;
+        lengthHint.replaceWith(hintContainer);
+
         function validatePassword() {
             const pass = passwordInput.value;
             const confirm = confirmInput.value;
             
-            let isValid = true;
+            let isPasswordValid = true;
 
-            // Validar longitud
-            if (pass.length < 8) {
-                lengthHint.classList.add('text-red-500');
-                lengthHint.classList.remove('text-green-500', 'text-gray-500');
-                isValid = false;
-            } else {
-                lengthHint.classList.remove('text-red-500', 'text-gray-500');
-                lengthHint.classList.add('text-green-500');
-            }
+            // Validar cada regla
+            rules.forEach(rule => {
+                const el = document.getElementById(rule.id);
+                if (rule.regex.test(pass)) {
+                    el.classList.remove('text-gray-500', 'text-red-500');
+                    el.classList.add('text-green-500');
+                } else {
+                    el.classList.remove('text-green-500');
+                    if (pass.length > 0) {
+                        el.classList.add('text-red-500');
+                    } else {
+                        el.classList.add('text-gray-500');
+                        el.classList.remove('text-red-500');
+                    }
+                    isPasswordValid = false;
+                }
+            });
 
             // Validar coincidencia
-            if (confirm.length > 0 && pass !== confirm) {
-                matchError.classList.remove('hidden');
-                confirmInput.classList.add('border-red-500');
-                isValid = false;
+            let isMatchValid = false;
+            if (confirm.length > 0) {
+                if (pass !== confirm) {
+                    matchError.classList.remove('hidden');
+                    confirmInput.classList.add('border-red-500');
+                } else {
+                    matchError.classList.add('hidden');
+                    confirmInput.classList.remove('border-red-500');
+                    isMatchValid = true;
+                }
             } else {
                 matchError.classList.add('hidden');
                 confirmInput.classList.remove('border-red-500');
             }
 
-            // Solo si coinciden, no están vacíos y pass tiene >= 8
-            if (pass.length >= 8 && confirm.length >= 8 && pass === confirm) {
-                isValid = true;
-            } else {
-                isValid = false;
-            }
-
-            if (isValid) {
+            // Habilitar botón solo si todo es válido
+            if (isPasswordValid && isMatchValid) {
                 submitBtn.removeAttribute('disabled');
                 submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
             } else {

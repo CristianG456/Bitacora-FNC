@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   app:
@@ -8,6 +7,9 @@ services:
     working_dir: /var/www
     volumes:
       - .:/var/www
+    environment:
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-Admin@cafedecolombia.com}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-Admin123!-}
     depends_on:
       - db
 
