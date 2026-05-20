@@ -30,7 +30,12 @@ class PasswordChangeController extends Controller
                     ->mixedCase()
                     ->letters()
                     ->numbers()
-                    ->symbols()
+                    ->symbols(),
+                function ($attribute, $value, $fail) {
+                    if (\Illuminate\Support\Facades\Hash::check($value, \Illuminate\Support\Facades\Auth::user()->password)) {
+                        $fail('La nueva contraseña no puede ser igual a la contraseña temporal o actual.');
+                    }
+                }
             ],
         ], [
             'password.required' => 'La contraseña es obligatoria.',
