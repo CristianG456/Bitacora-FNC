@@ -9,7 +9,8 @@ services:
       - ADMIN_EMAIL=${ADMIN_EMAIL:-Admin@cafedecolombia.com}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-Admin123!-}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     volumes:
       - public_data:/var/www/public
       - storage_data:/var/www/storage
@@ -38,6 +39,11 @@ services:
       - "3308:3306"
     volumes:
       - dbdata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   dbdata:
