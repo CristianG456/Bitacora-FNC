@@ -1,13 +1,14 @@
-
 services:
   app:
-    image: cristian123456/bitacora-fnc:v1.5.15
+    image: cristian123456/bitacora-fnc:v1.5.17
     container_name: laravel_app_bitacora
     restart: unless-stopped
     working_dir: /var/www
     environment:
       - ADMIN_EMAIL=${ADMIN_EMAIL:-Admin@cafedecolombia.com}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-Admin123!-}
+    env_file:
+      - .env
     depends_on:
       db:
         condition: service_healthy

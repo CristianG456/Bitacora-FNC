@@ -5,6 +5,12 @@ php artisan migrate --force
 # Crear administrador a partir de variables de entorno
 php artisan app:create-admin
 
+# Restaurar la carpeta public si el Bind Mount la dejó vacía
+if [ -z "$(ls -A /var/www/public)" ]; then
+    echo "Carpeta public vacía detectada. Restaurando archivos desde respaldo..."
+    cp -r /tmp/public_stash/* /var/www/public/
+fi
+
 # Asegurar que la estructura de carpetas exista (crucial al usar Bind Mounts vacíos)
 mkdir -p /var/www/storage/framework/cache/data
 mkdir -p /var/www/storage/framework/sessions

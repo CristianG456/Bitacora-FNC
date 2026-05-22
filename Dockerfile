@@ -8,7 +8,8 @@ RUN apt-get update && apt-get install -y \
     unzip \
     libpng-dev \
     libonig-dev \
-    libxml2-dev
+    libxml2-dev \
+    netcat-openbsd
 
 # Extensiones PHP necesarias
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
@@ -21,6 +22,9 @@ WORKDIR /var/www
 COPY . .
 
 RUN composer install
+
+# Respaldar la carpeta public para evitar que se pierda con el Bind Mount
+RUN cp -r public /tmp/public_stash
 
 # Script de inicio
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
