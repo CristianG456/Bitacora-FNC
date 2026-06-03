@@ -56,14 +56,17 @@ class UserController extends Controller
 
         $user = User::create($data);
 
+        // La contraseña NO se envía por correo (canal inseguro).
+        // El correo solo notifica la creación; el admin entrega la contraseña
+        // temporal al usuario por un canal seguro (presencial / verificado).
         try {
-            \Illuminate\Support\Facades\Mail::to($user->email)->send(new \App\Mail\UserCreatedMail($user, $request->password));
+            \Illuminate\Support\Facades\Mail::to($user->email)->queue(new \App\Mail\UserCreatedMail($user));
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Error enviando correo de creación de usuario a ' . $user->email . ': ' . $e->getMessage());
         }
 
         return redirect()->route('usuarios.index')
-            ->with('success', 'Usuario creado correctamente y correo enviado.');
+            ->with('success', 'Usuario creado correctamente. Recuerda comunicarle su contraseña temporal por un canal seguro.');
     }
 
     public function editar(User $usuario)
@@ -93,9 +96,17 @@ class UserController extends Controller
 
     public function cambiarEstado(Request $request, User $usuario)
     {
-        $usuario->update([
-            'activo' => !$usuario->activo
-        ]);
+        $nuevoEstado = !$usuario->activo;
+        $usuario->update(['activo' => $nuevoEstado]);
+
+        // Registrar en bitácora: cambio de estado es evento de seguridad crítico
+        \App\Models\Bitacora::registrar(
+            modulo:          'Usuarios',
+            accion:          $nuevoEstado ? 'Activar usuario' : 'Desactivar usuario',
+            descripcion:     auth()->user()->name . ' ' . ($nuevoEstado ? 'activó' : 'desactivó') . ' la cuenta del usuario ' . $usuario->name . ' (' . $usuario->email . ').',
+            entidadId:       $usuario->id,
+            usuarioAfectado: $usuario->id
+        );
 
         return redirect()->back()
             ->with('success', 'Estado del usuario actualizado correctamente.');
@@ -107,6 +118,15 @@ class UserController extends Controller
         if (auth()->id() === $usuario->id) {
             return redirect()->back()->with('error', 'No puedes eliminar tu propio usuario.');
         }
+
+        // Registrar en bitácora ANTES de eliminar para no perder la referencia
+        \App\Models\Bitacora::registrar(
+            modulo:          'Usuarios',
+            accion:          'Eliminar usuario',
+            descripcion:     auth()->user()->name . ' eliminó (soft delete) al usuario ' . $usuario->name . ' (' . $usuario->email . ').',
+            entidadId:       $usuario->id,
+            usuarioAfectado: $usuario->id
+        );
 
         $usuario->delete();
 

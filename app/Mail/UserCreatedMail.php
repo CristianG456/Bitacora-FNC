@@ -15,12 +15,15 @@ class UserCreatedMail extends Mailable implements ShouldQueue
     use Queueable, SerializesModels;
 
     public $user;
-    public $temporalPassword;
 
-    public function __construct(User $user, string $temporalPassword)
+    /**
+     * No almacenamos la contraseña temporal en el Mailable:
+     * nunca debe circular por canales de correo (inseguro).
+     * El administrador la comunica al usuario por un canal seguro.
+     */
+    public function __construct(User $user)
     {
         $this->user = $user;
-        $this->temporalPassword = $temporalPassword;
     }
 
     public function envelope(): Envelope

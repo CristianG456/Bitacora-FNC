@@ -100,6 +100,21 @@ class LoginController extends Controller
             return redirect()->route('dashboard');
         }
 
+        // Registrar intento de login fallido en bitácora para trazabilidad
+        $userFallido = \App\Models\User::where('email', $request->email)->first();
+        if ($userFallido) {
+            \App\Models\Bitacora::create([
+                'caso_id'    => null,
+                'user_id'    => $userFallido->id,
+                'modulo'     => 'Seguridad',
+                'accion'     => 'Login fallido',
+                'descripcion'=> "Intento de acceso fallido para el usuario {$userFallido->email}.",
+                'ip'         => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'created_at' => now(),
+            ]);
+        }
+
         return back()->withErrors([
             'email' => 'Credenciales incorrectas'
         ]);

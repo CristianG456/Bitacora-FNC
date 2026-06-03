@@ -120,9 +120,26 @@ class TareaController extends Controller
 
         $this->verificarTareaDeCaso($caso, $tarea);
 
-        if ($tarea->user_id !== Auth::id() && !Auth::user()->tieneAlgunRol(['Administrador', 'Juridica'])) {
+        $user    = Auth::user();
+        $esAdmin = $user->tieneAlgunRol(['Administrador', 'Juridica']);
+
+        // Solo el usuario asignado puede completar la tarea (o admins/jurídica)
+        if ($tarea->user_id !== Auth::id() && !$esAdmin) {
             abort(403, 'Solo el usuario asignado puede completar esta tarea.');
         }
+
+        // Verificar que el usuario siga activo en el caso (no haya sido removido)
+        if (!$esAdmin) {
+            $activoEnCaso = $caso->usuarios()
+                ->where('users.id', Auth::id())
+                ->wherePivot('activo', true)
+                ->exists();
+
+            if (!$activoEnCaso) {
+                abort(403, 'Ya no tienes acceso activo a este caso.');
+            }
+        }
+
 
         DB::transaction(function () use ($request, $caso, $tarea) {
             $tarea->update([

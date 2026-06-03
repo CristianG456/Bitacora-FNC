@@ -1,6 +1,21 @@
 #!/bin/sh
-# Ejecutar migraciones
-php artisan migrate --force
+set -e
+
+echo "=== Iniciando contenedor de la aplicación ==="
+
+# ── Migraciones ────────────────────────────────────────────────────────────
+# Se verifica si hay migraciones pendientes antes de ejecutarlas.
+# En producción, considera ejecutar migraciones manualmente antes de desplegar.
+echo "Verificando migraciones pendientes..."
+PENDING=$(php artisan migrate:status 2>/dev/null | grep -c "Pending" || true)
+
+if [ "$PENDING" -gt 0 ]; then
+    echo "⚠️  Se encontraron $PENDING migraciones pendientes. Ejecutando..."
+    php artisan migrate --force
+    echo "✅ Migraciones aplicadas."
+else
+    echo "✅ No hay migraciones pendientes."
+fi
 
 # Crear administrador a partir de variables de entorno
 php artisan app:create-admin
@@ -22,5 +37,6 @@ mkdir -p /var/www/bootstrap/cache
 chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 chmod -R 775 /var/www/storage /var/www/bootstrap/cache
 
+echo "=== Iniciando php-fpm ==="
 # Iniciar el proceso principal (php-fpm)
 exec php-fpm

@@ -183,26 +183,52 @@ class BackupService
 
     /**
      * Genera el dump de la base de datos usando mysqldump.
+     * La contraseña se pasa a través de un archivo de credenciales temporal
+     * (.my.cnf) con permisos 0600 para evitar que aparezca en la lista de
+     * procesos del SO y prevenir inyección de comandos.
      */
     protected function generateDump(string $outputPath)
     {
-        $host = env('DB_HOST', '127.0.0.1');
-        $port = env('DB_PORT', '3306');
+        $host     = env('DB_HOST', '127.0.0.1');
+        $port     = env('DB_PORT', '3306');
         $database = env('DB_DATABASE', 'laravel');
         $username = env('DB_USERNAME', 'root');
         $password = env('DB_PASSWORD', '');
 
-        $passwordOption = !empty($password) ? "-p\"{$password}\"" : "";
-        $command = "mysqldump -h {$host} -P {$port} -u {$username} {$passwordOption} {$database} > \"{$outputPath}\"";
+        // Crear archivo de credenciales temporal con permisos restringidos
+        $cnfPath = tempnam(sys_get_temp_dir(), 'mysql_cnf_');
+        $cnfContent = "[client]\n"
+            . "user=" . $username . "\n"
+            . (!empty($password) ? "password=" . $password . "\n" : "");
 
-        $output = null;
-        $resultCode = null;
-        
-        exec($command . ' 2>&1', $output, $resultCode);
+        file_put_contents($cnfPath, $cnfContent);
+        chmod($cnfPath, 0600);
 
-        if ($resultCode !== 0) {
-            $error = implode("\n", $output);
-            throw new \Exception("mysqldump falló: {$error}");
+        try {
+            // Usar escapeshellarg en todos los valores para prevenir inyección
+            $command = sprintf(
+                'mysqldump --defaults-extra-file=%s -h %s -P %s %s > %s 2>&1',
+                escapeshellarg($cnfPath),
+                escapeshellarg($host),
+                escapeshellarg($port),
+                escapeshellarg($database),
+                escapeshellarg($outputPath)
+            );
+
+            $output     = null;
+            $resultCode = null;
+
+            exec($command, $output, $resultCode);
+
+            if ($resultCode !== 0) {
+                $error = implode("\n", $output);
+                throw new \Exception("mysqldump falló: {$error}");
+            }
+        } finally {
+            // Eliminar siempre el archivo de credenciales temporal
+            if (file_exists($cnfPath)) {
+                unlink($cnfPath);
+            }
         }
     }
-}
+

@@ -326,6 +326,21 @@ class CasoController extends Controller
             'mensaje' => 'required|string|max:1000'
         ]);
 
+        // ── Seguridad: verificar que el usuario tiene acceso activo al caso ──
+        $user    = Auth::user();
+        $esAdmin = $user->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor']);
+
+        if (!$esAdmin) {
+            $asignado = $caso->usuarios()
+                ->where('users.id', $user->id)
+                ->wherePivot('activo', true)
+                ->exists();
+
+            if (!$asignado) {
+                abort(403, 'No tienes acceso para enviar mensajes en este caso.');
+            }
+        }
+
         $mensaje = $caso->mensajes()->create([
             'user_id' => Auth::id(),
             'mensaje' => $request->input('mensaje'),

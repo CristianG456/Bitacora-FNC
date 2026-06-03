@@ -19,8 +19,10 @@ class DashboardController extends Controller
 
         $totalCasos    = (clone $baseQuery)->count();
         $enProceso     = (clone $baseQuery)->where('estado', 'En proceso')->count();
-        $completados   = (clone $baseQuery)->where('estado', 'Completado')->count();
-        $finalizados   = (clone $baseQuery)->where('estado', 'Finalizado')->count();
+        // 'Completado' nunca se alcanza por lógica de la app; se cuenta 'Finalizado'
+        // para que la tarjeta muestre los casos efectivamente cerrados.
+        $completados   = (clone $baseQuery)->where('estado', 'Finalizado')->count();
+        $finalizados   = $completados; // Alias para mantener compatibilidad con la vista
         $pendientes    = (clone $baseQuery)->where('estado', 'Pendiente')->count();
 
         // ─── Casos recientes ───────────────────────────────────────
