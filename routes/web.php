@@ -85,6 +85,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Chat del caso
     Route::post('/casos/{caso}/mensajes', [CasoController::class, 'enviarMensaje'])->name('casos.mensajes');
+    Route::get('/casos/{caso}/mensajes/json', [CasoController::class, 'getMensajesJson'])->name('casos.mensajes.json');
 
     // Gestión de usuarios asignados al caso
     Route::middleware(['role:Administrador,Juridica'])->group(function () {

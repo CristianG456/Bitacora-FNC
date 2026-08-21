@@ -1,77 +1,176 @@
+name: thriving_rally
+
+# ==============================================================================
+# docker-compose.yml — PRODUCCIÓN
+# Sistema de Bitácoras / Jurídica
+# Compatible con ZimaOS / CasaOS
+#
+# SOLUCIÓN NGINX: el config se monta como archivo desde el host.
+# El archivo /DATA/AppData/bitacoras/nginx/default.conf debe existir
+# en el servidor ANTES de levantar este compose.
+# Ver instrucciones de despliegue en README o en la sección nginx.
+# ==============================================================================
+
 services:
-  app:
-    image: cristian123456/bitacora-fnc:v1.5.17
-    container_name: laravel_app_bitacora
+
+  # ============================================================================
+  # LARAVEL / PHP-FPM
+  # ============================================================================
+  juridica_app:
+    image: cristian123456/bitacora-fnc:v1.5.16
+
+    container_name: juridica_app
+
     restart: unless-stopped
+
     working_dir: /var/www
+
     environment:
-      - ADMIN_EMAIL=${ADMIN_EMAIL}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-    env_file:
-      - .env
+      APP_NAME: "Sistema de Bitácoras"
+      APP_ENV: "production"
+      APP_KEY: "base64:e7FQIk4F+fKVYhxudjgdwtez8Jia2ywbS/VV51Yg73Q="
+      APP_DEBUG: "false"
+      APP_URL: "http://192.168.76.161:8010"
+
+      APP_TIMEZONE: "America/Bogota"
+      APP_LOCALE: "es"
+      APP_FALLBACK_LOCALE: "en"
+
+      ADMIN_EMAIL: "administrador@cafedecolombia.com"
+      ADMIN_PASSWORD: "ChangeMeOnFirstLogin!"
+
+      DB_CONNECTION: "mysql"
+      DB_HOST: "juridica_db"
+      DB_PORT: "3306"
+      DB_DATABASE: "laravel"
+      DB_USERNAME: "usuario"
+      DB_PASSWORD: "BITACORA_FNC123"
+      DB_ROOT_PASSWORD: "ROOT_bitacora_fnc123"
+
+      SESSION_DRIVER: "file"
+      SESSION_LIFETIME: "120"
+      SESSION_ENCRYPT: "false"
+
+      CACHE_STORE: "file"
+
+      QUEUE_CONNECTION: "database"
+      FILESYSTEM_DISK: "local"
+
+      LOG_CHANNEL: "stack"
+      LOG_STACK: "single"
+      LOG_LEVEL: "warning"
+
     depends_on:
-      db:
+      juridica_db:
         condition: service_healthy
-    volumes:
-      - ./Cafe/Apps/Bitacora-fnc/public:/var/www/public
-      - ./Cafe/Apps/Bitacora-fnc/storage:/var/www/storage
+
     networks:
-      - internal
-    # Health check: verifica que php-fpm esté respondiendo
+      - juridica_net
+
+    volumes:
+      - /DATA/AppData/bitacoras/public:/var/www/public
+      - /DATA/AppData/bitacoras/storage:/var/www/storage
+
     healthcheck:
       test: ["CMD-SHELL", "php-fpm -t || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
       start_period: 40s
 
-  webserver:
+  # ============================================================================
+  # NGINX
+  # El archivo default.conf se monta desde el host para evitar que
+  # Docker Compose interpole las variables de nginx ($uri, $query_string, etc.)
+  # ============================================================================
+  juridica_nginx:
     image: nginx:alpine
-    container_name: nginx_bitacora
+
+    container_name: juridica_nginx
+
     restart: unless-stopped
+
     ports:
-      - "8000:80"
+      - "8010:80"
+
     volumes:
-      - ./Cafe/Apps/Bitacora-fnc/public:/var/www/public
-      - ./Cafe/Apps/Bitacora-fnc/storage:/var/www/storage
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      # Config de nginx montada directamente — sin interpolación
+      - /DATA/AppData/bitacoras/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Archivos públicos de Laravel
+      - /DATA/AppData/bitacoras/public:/var/www/public:ro
+      - /DATA/AppData/bitacoras/storage:/var/www/storage:ro
+
     depends_on:
-      app:
+      juridica_app:
         condition: service_healthy
+
     networks:
-      - internal
-    # Health check: verifica que nginx devuelva respuesta HTTP
+      - juridica_net
+
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost/up || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
       start_period: 20s
 
-  db:
-    image: mysql:8
-    container_name: mysql_bitacora
+  # ============================================================================
+  # MYSQL
+  # ============================================================================
+  juridica_db:
+    image: mysql:8.0
+
+    container_name: juridica_db
+
     restart: unless-stopped
+
     environment:
-      MYSQL_DATABASE: laravel
-      # La contraseña se lee del .env (variable DB_ROOT_PASSWORD).
-      # OBLIGATORIO: cambiar esta contraseña antes del despliegue en producción.
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-CAMBIA_ESTA_CONTRASENA_EN_PRODUCCION}
+      MYSQL_DATABASE: "laravel"
+      MYSQL_ROOT_PASSWORD: "ROOT_bitacora_fnc123"
+      MYSQL_USER: "usuario"
+      MYSQL_PASSWORD: "BITACORA_FNC123"
+
     ports:
-      # SEGURIDAD: solo expuesto en localhost para acceso de administración local.
-      # En producción pura, elimina estas líneas para que MySQL no sea accesible externamente.
-      - "127.0.0.1:3308:3306"
-    volumes:
-      - ./Cafe/Apps/Bitacora-fnc/mysql:/var/lib/mysql
+      - "3310:3306"
+
     networks:
-      - internal
+      - juridica_net
+
+    volumes:
+      - /DATA/AppData/bitacoras/mysql:/var/lib/mysql
+
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --sql-mode=
+
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-CAMBIA_ESTA_CONTRASENA_EN_PRODUCCION}"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -pROOT_bitacora_fnc123 --silent"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
       start_period: 30s
 
+# ==============================================================================
+# RED
+# ==============================================================================
 networks:
-  internal:
+  juridica_net:
+    name: juridica_net
     driver: bridge
+
+# ==============================================================================
+# CONFIGURACIÓN DE ZIMAOS / CASAOS
+# Esto asegura que el icono funcione automáticamente al instalar
+# ==============================================================================
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+    - arm
+  main: juridica_nginx
+  title:
+    custom: bitacoras_fnc
+  index: /
+  port_map: "8010"
+  scheme: http

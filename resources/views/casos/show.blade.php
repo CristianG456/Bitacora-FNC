@@ -668,6 +668,48 @@
             });
         });
     }
+
+    // Auto update mensajes cada 5 segundos
+    const autoUpdateChatContainer = document.getElementById('chat-container');
+    let lastMessageCount = {{ $caso->mensajes->count() }};
+    
+    if (autoUpdateChatContainer) {
+        setInterval(() => {
+            fetch('{{ route("casos.mensajes.json", $caso->id) }}')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.mensajes && data.mensajes.length > lastMessageCount) {
+                        lastMessageCount = data.mensajes.length;
+                        
+                        autoUpdateChatContainer.innerHTML = '';
+                        
+                        data.mensajes.forEach(msg => {
+                            const isMio = msg.esMio;
+                            const flexClass = isMio ? 'items-end' : 'items-start';
+                            const bgClass = isMio ? 'bg-[#b11226] text-white' : 'bg-gray-100 text-gray-800';
+                            const authorColor = isMio ? 'text-red-100' : 'text-gray-600';
+                            
+                            const div = document.createElement('div');
+                            div.className = `flex flex-col ${flexClass}`;
+                            div.innerHTML = `
+                                <div class="${bgClass} rounded-xl p-3 max-w-[85%] relative shadow-sm">
+                                    <span class="block text-[11px] font-bold opacity-90 mb-1 ${authorColor}">
+                                        ${msg.autor}
+                                    </span>
+                                    <p class="text-[13.5px] leading-relaxed">${msg.mensaje}</p>
+                                </div>
+                                <span class="text-[10px] text-gray-400 mt-1 mx-1">${msg.fecha}</span>
+                            `;
+                            autoUpdateChatContainer.appendChild(div);
+                        });
+                        
+                        // Scroll al final
+                        autoUpdateChatContainer.scrollTop = autoUpdateChatContainer.scrollHeight;
+                    }
+                })
+                .catch(error => console.error('Error auto actualizando mensajes:', error));
+        }, 5000);
+    }
 </script>
 @endpush
 

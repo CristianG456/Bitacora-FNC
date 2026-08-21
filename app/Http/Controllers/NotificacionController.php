@@ -42,6 +42,11 @@ class NotificacionController extends Controller
                 ];
             });
 
-        return response()->json($notificaciones);
+        $sinLeer = Auth::user()->notificacionesSinLeer();
+
+        return response()->json([
+            'notificaciones' => $notificaciones,
+            'sinLeer' => $sinLeer
+        ]);
     }
 }

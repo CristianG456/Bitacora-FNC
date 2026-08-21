@@ -360,6 +360,35 @@ class CasoController extends Controller
             ->with('success', 'Mensaje enviado.');
     }
 
+    public function getMensajesJson(Caso $caso)
+    {
+        $user    = Auth::user();
+        $esAdmin = $user->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor']);
+
+        if (!$esAdmin) {
+            $asignado = $caso->usuarios()
+                ->where('users.id', $user->id)
+                ->wherePivot('activo', true)
+                ->exists();
+
+            if (!$asignado) {
+                return response()->json(['error' => 'No autorizado'], 403);
+            }
+        }
+
+        $mensajes = $caso->mensajes()->with('autor')->oldest()->get()->map(function ($msg) use ($user) {
+            return [
+                'id' => $msg->id,
+                'esMio' => $msg->user_id === $user->id,
+                'autor' => $msg->user_id === $user->id ? 'Tú' : ($msg->autor?->name ?? 'Usuario'),
+                'mensaje' => $msg->mensaje,
+                'fecha' => $msg->created_at->format('d M, H:i \h')
+            ];
+        });
+
+        return response()->json(['mensajes' => $mensajes]);
+    }
+
     public function finalizar(Request $request, Caso $caso)
     {
         // Validar que todas las tareas estén completadas

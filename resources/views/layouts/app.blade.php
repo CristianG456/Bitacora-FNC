@@ -203,19 +203,93 @@
         }
     }
 
+    let lastNotifIds = null;
+
     function cargarNotificaciones() {
         fetch('{{ route("notificaciones.recientes") }}')
             .then(response => response.json())
             .then(data => {
                 const list = document.getElementById('notif-list');
+                const badgeCount = document.getElementById('notif-badge-count');
+                const container = document.getElementById('notif-btn');
+                
+                let notifs = data.notificaciones || [];
+                let sinLeer = data.sinLeer || 0;
+
+                // Check for new notifications to show visual Toast
+                if (lastNotifIds !== null) {
+                    notifs.forEach(n => {
+                        if (!n.leido && !lastNotifIds.includes(n.id)) {
+                            // Show Toast
+                            if (typeof Toast !== 'undefined') {
+                                Toast.fire({
+                                    icon: 'info',
+                                    title: n.titulo,
+                                    text: n.mensaje
+                                });
+                            }
+                            
+                            // Si estamos en el dashboard o en la lista de casos, actualizar DOM sin recargar la página
+                            if (window.location.pathname.includes('/dashboard') || window.location.pathname === '/casos') {
+                                fetch(window.location.href)
+                                    .then(res => res.text())
+                                    .then(html => {
+                                        const parser = new DOMParser();
+                                        const doc = parser.parseFromString(html, 'text/html');
+                                        
+                                        // Actualizar Dashboard Stats
+                                        const newStats = doc.querySelector('.dashboard-stats-grid');
+                                        const currentStats = document.querySelector('.dashboard-stats-grid');
+                                        if (newStats && currentStats) currentStats.innerHTML = newStats.innerHTML;
+                                        
+                                        // Actualizar Dashboard Casos
+                                        const newCases = doc.querySelector('.recent-cases-wrapper');
+                                        const currentCases = document.querySelector('.recent-cases-wrapper');
+                                        if (newCases && currentCases) currentCases.innerHTML = newCases.innerHTML;
+                                        
+                                        // Actualizar Casos Index
+                                        if (window.location.pathname === '/casos') {
+                                            const newCasosList = doc.querySelector('.space-y-4');
+                                            const currentCasosList = document.querySelector('.space-y-4');
+                                            if (newCasosList && currentCasosList) currentCasosList.innerHTML = newCasosList.innerHTML;
+                                        }
+
+                                        // Re-renderizar iconos
+                                        if (typeof lucide !== 'undefined') lucide.createIcons();
+                                    });
+                            }
+                        }
+                    });
+                }
+                
+                // Update tracking IDs
+                lastNotifIds = notifs.map(n => n.id);
+
+                // Update badge
+                if (sinLeer > 0) {
+                    if (badgeCount) {
+                        badgeCount.innerText = sinLeer > 9 ? '9+' : sinLeer;
+                    } else {
+                        const newBadge = document.createElement('span');
+                        newBadge.className = 'notif-badge';
+                        newBadge.id = 'notif-badge-count';
+                        newBadge.innerText = sinLeer > 9 ? '9+' : sinLeer;
+                        container.appendChild(newBadge);
+                    }
+                } else if (badgeCount) {
+                    badgeCount.remove();
+                }
+
+                if (!list) return; // if dropdown is not open or element missing
+                
                 list.innerHTML = '';
                 
-                if (data.length === 0) {
+                if (notifs.length === 0) {
                     list.innerHTML = '<div class="p-4 text-center text-sm text-gray-500">No tienes notificaciones.</div>';
                     return;
                 }
 
-                data.forEach(n => {
+                notifs.forEach(n => {
                     const bg = n.leido ? 'bg-white' : 'bg-blue-50';
                     const icon = n.tipo === 'success' ? '<i data-lucide="check-circle" class="w-4 h-4 text-green-500"></i>' : '<i data-lucide="info" class="w-4 h-4 text-blue-500"></i>';
                     
@@ -233,6 +307,14 @@
                 lucide.createIcons();
             });
     }
+
+    // Initialize first fetch to setup lastNotifIds without triggering Toast
+    cargarNotificaciones();
+
+    // Auto update notifications every 3 seconds for instant feel
+    setInterval(() => {
+        cargarNotificaciones();
+    }, 3000);
 
     // Cerrar al hacer clic fuera
     document.addEventListener('click', function(event) {
