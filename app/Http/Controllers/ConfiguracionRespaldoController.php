@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreConfiguracionRespaldoRequest;
 use App\Http\Requests\UpdateConfiguracionRespaldoRequest;
+use App\Models\BackupHistory;
 use App\Models\ConfiguracionRespaldo;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
 
 class ConfiguracionRespaldoController extends Controller
 {
@@ -13,7 +16,7 @@ class ConfiguracionRespaldoController extends Controller
     {
         $config = ConfiguracionRespaldo::first() ?? new ConfiguracionRespaldo();
         
-        $query = \App\Models\BackupHistory::query();
+        $query = BackupHistory::query();
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -25,7 +28,9 @@ class ConfiguracionRespaldoController extends Controller
 
         $historial = $query->orderBy('created_at', 'desc')->paginate(10)->withQueryString();
 
-        return view('respaldos.index', compact('config', 'historial'));
+        $resumenRespaldos = $this->buildBackupSummary($config);
+
+        return view('respaldos.index', compact('config', 'historial', 'resumenRespaldos'));
     }
 
     public function storeOrUpdate(\App\Http\Requests\StoreConfiguracionRespaldoRequest $request)
@@ -43,6 +48,10 @@ class ConfiguracionRespaldoController extends Controller
         // Si no se proporcionó contraseña pero ya existe configuración, mantenemos la anterior
         if (empty($validated['smtp_password']) && $config) {
             unset($validated['smtp_password']);
+        }
+
+        if (empty($validated['backup_password']) && $config) {
+            unset($validated['backup_password']);
         }
 
         if ($config) {
@@ -144,5 +153,74 @@ class ConfiguracionRespaldoController extends Controller
         $history->delete();
 
         return back()->with('success', 'Respaldo eliminado correctamente.');
+    }
+
+    private function buildBackupSummary(ConfiguracionRespaldo $config): array
+    {
+        $latest = BackupHistory::latest()->first();
+        $latestError = BackupHistory::where('status', 'fallido')
+            ->where('created_at', '>=', now()->subDays(30))
+            ->latest()
+            ->first();
+        $recent = BackupHistory::latest()->limit(5)->get();
+
+        $localCopies = null;
+        try {
+            $directory = storage_path('app/backups');
+            $localCopies = File::isDirectory($directory)
+                ? collect(File::files($directory))->filter(
+                    fn ($file) => strtolower($file->getExtension()) === 'zip'
+                )->count()
+                : 0;
+        } catch (\Throwable) {
+            // La vista mostrara "No disponible" si no puede consultar el almacenamiento local.
+        }
+
+        $status = 'advertencia';
+        if ($latest?->status === 'fallido') {
+            $status = 'error';
+        } elseif ($config->exists && $config->is_active && $latest?->status === 'exitoso') {
+            $status = 'operativo';
+        }
+
+        return [
+            'status' => $status,
+            'latest' => $latest,
+            'latest_error' => $latestError,
+            'recent' => $recent,
+            'next_run' => $this->nextScheduledRun($config),
+            'local_copies' => $localCopies,
+            // R2 no ofrece actualmente una operacion segura de listado; no se inventa disponibilidad.
+            'r2_copies' => null,
+            'r2_records' => BackupHistory::where('status', 'exitoso')
+                ->where('storage_provider', 'r2')
+                ->count(),
+        ];
+    }
+
+    private function nextScheduledRun(ConfiguracionRespaldo $config): ?Carbon
+    {
+        if (! $config->exists || ! $config->is_active || ! $config->backup_time) {
+            return null;
+        }
+
+        $time = Carbon::parse($config->backup_time);
+        $next = now()->setTime($time->hour, $time->minute, 0);
+
+        if ($config->backup_frequency === 'diario') {
+            return $next->isFuture() ? $next : $next->addDay();
+        }
+
+        if ($config->backup_frequency === 'semanal') {
+            $next = $next->nextOrSame(Carbon::SUNDAY);
+            return $next->isFuture() ? $next : $next->addWeek();
+        }
+
+        if ($config->backup_frequency === 'mensual') {
+            $next = $next->startOfMonth();
+            return $next->isFuture() ? $next : $next->addMonthNoOverflow();
+        }
+
+        return null;
     }
 }

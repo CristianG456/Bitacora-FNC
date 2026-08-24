@@ -1,9 +1,25 @@
+@if(request()->ajax())
+<div id="module-fragment" data-module-title="@yield('title')">
+    @yield('content')
+</div>
+<div id="module-styles">
+    @stack('styles')
+</div>
+<div id="module-scripts">
+    @stack('scripts')
+</div>
+<div id="module-flash"
+     data-success="{{ session('success') }}"
+     data-error="{{ session('error') ?: ($errors->any() ? $errors->first() : '') }}"></div>
+@else
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script>window.userId = @json(auth()->id());</script>
+    @vite(['resources/js/app.js'])
     <title>@yield('title', 'Sistema de Gestión de Casos Jurídicos')</title>
     <meta name="description" content="Sistema de Gestión de Casos Jurídicos - Federación Nacional de Cafeteros">
     
@@ -173,7 +189,7 @@
     {{-- Flash messages are handled by SweetAlert at the bottom of the file --}}
 
     {{-- Contenido de página --}}
-    <main class="page-content">
+    <main id="app-content" class="page-content">
         @yield('content')
     </main>
 
@@ -203,118 +219,51 @@
         }
     }
 
-    let lastNotifIds = null;
-
     function cargarNotificaciones() {
         fetch('{{ route("notificaciones.recientes") }}')
             .then(response => response.json())
             .then(data => {
                 const list = document.getElementById('notif-list');
-                const badgeCount = document.getElementById('notif-badge-count');
-                const container = document.getElementById('notif-btn');
-                
-                let notifs = data.notificaciones || [];
-                let sinLeer = data.sinLeer || 0;
+                list.replaceChildren();
 
-                // Check for new notifications to show visual Toast
-                if (lastNotifIds !== null) {
-                    notifs.forEach(n => {
-                        if (!n.leido && !lastNotifIds.includes(n.id)) {
-                            // Show Toast
-                            if (typeof Toast !== 'undefined') {
-                                Toast.fire({
-                                    icon: 'info',
-                                    title: n.titulo,
-                                    text: n.mensaje
-                                });
-                            }
-                            
-                            // Si estamos en el dashboard o en la lista de casos, actualizar DOM sin recargar la página
-                            if (window.location.pathname.includes('/dashboard') || window.location.pathname === '/casos') {
-                                fetch(window.location.href)
-                                    .then(res => res.text())
-                                    .then(html => {
-                                        const parser = new DOMParser();
-                                        const doc = parser.parseFromString(html, 'text/html');
-                                        
-                                        // Actualizar Dashboard Stats
-                                        const newStats = doc.querySelector('.dashboard-stats-grid');
-                                        const currentStats = document.querySelector('.dashboard-stats-grid');
-                                        if (newStats && currentStats) currentStats.innerHTML = newStats.innerHTML;
-                                        
-                                        // Actualizar Dashboard Casos
-                                        const newCases = doc.querySelector('.recent-cases-wrapper');
-                                        const currentCases = document.querySelector('.recent-cases-wrapper');
-                                        if (newCases && currentCases) currentCases.innerHTML = newCases.innerHTML;
-                                        
-                                        // Actualizar Casos Index
-                                        if (window.location.pathname === '/casos') {
-                                            const newCasosList = doc.querySelector('.space-y-4');
-                                            const currentCasosList = document.querySelector('.space-y-4');
-                                            if (newCasosList && currentCasosList) currentCasosList.innerHTML = newCasosList.innerHTML;
-                                        }
-
-                                        // Re-renderizar iconos
-                                        if (typeof lucide !== 'undefined') lucide.createIcons();
-                                    });
-                            }
-                        }
-                    });
-                }
-                
-                // Update tracking IDs
-                lastNotifIds = notifs.map(n => n.id);
-
-                // Update badge
-                if (sinLeer > 0) {
-                    if (badgeCount) {
-                        badgeCount.innerText = sinLeer > 9 ? '9+' : sinLeer;
-                    } else {
-                        const newBadge = document.createElement('span');
-                        newBadge.className = 'notif-badge';
-                        newBadge.id = 'notif-badge-count';
-                        newBadge.innerText = sinLeer > 9 ? '9+' : sinLeer;
-                        container.appendChild(newBadge);
-                    }
-                } else if (badgeCount) {
-                    badgeCount.remove();
-                }
-
-                if (!list) return; // if dropdown is not open or element missing
-                
-                list.innerHTML = '';
-                
-                if (notifs.length === 0) {
-                    list.innerHTML = '<div class="p-4 text-center text-sm text-gray-500">No tienes notificaciones.</div>';
+                if (data.length === 0) {
+                    const empty = document.createElement('div');
+                    empty.className = 'p-4 text-center text-sm text-gray-500';
+                    empty.textContent = 'No tienes notificaciones.';
+                    list.appendChild(empty);
                     return;
                 }
 
-                notifs.forEach(n => {
+                data.forEach(n => {
                     const bg = n.leido ? 'bg-white' : 'bg-blue-50';
-                    const icon = n.tipo === 'success' ? '<i data-lucide="check-circle" class="w-4 h-4 text-green-500"></i>' : '<i data-lucide="info" class="w-4 h-4 text-blue-500"></i>';
-                    
-                    list.innerHTML += `
-                        <div class="p-3 border-b border-gray-50 flex gap-3 hover:bg-gray-50 transition ${bg}">
-                            <div class="mt-0.5 shrink-0">${icon}</div>
-                            <div>
-                                <h4 class="text-xs font-bold text-gray-800 mb-0.5">${n.titulo}</h4>
-                                <p class="text-xs text-gray-600 leading-snug">${n.mensaje}</p>
-                                <span class="text-[10px] text-gray-400 mt-1 block">${n.fecha}</span>
-                            </div>
-                        </div>
-                    `;
+                    const row = document.createElement('div');
+                    row.className = `p-3 border-b border-gray-50 flex gap-3 hover:bg-gray-50 transition ${bg}`;
+
+                    const iconWrapper = document.createElement('div');
+                    iconWrapper.className = 'mt-0.5 shrink-0';
+                    const icon = document.createElement('i');
+                    icon.dataset.lucide = n.tipo === 'success' ? 'check-circle' : 'info';
+                    icon.className = n.tipo === 'success' ? 'w-4 h-4 text-green-500' : 'w-4 h-4 text-blue-500';
+                    iconWrapper.appendChild(icon);
+
+                    const details = document.createElement('div');
+                    const title = document.createElement('h4');
+                    title.className = 'text-xs font-bold text-gray-800 mb-0.5';
+                    title.textContent = n.titulo ?? '';
+                    const message = document.createElement('p');
+                    message.className = 'text-xs text-gray-600 leading-snug';
+                    message.textContent = n.mensaje ?? '';
+                    const date = document.createElement('span');
+                    date.className = 'text-[10px] text-gray-400 mt-1 block';
+                    date.textContent = n.fecha ?? '';
+
+                    details.append(title, message, date);
+                    row.append(iconWrapper, details);
+                    list.appendChild(row);
                 });
                 lucide.createIcons();
             });
     }
-
-    // Initialize first fetch to setup lastNotifIds without triggering Toast
-    cargarNotificaciones();
-
-    // Auto update notifications every 3 seconds for instant feel
-    setInterval(() => {
-        cargarNotificaciones();
-    }, 3000);
 
     // Cerrar al hacer clic fuera
     document.addEventListener('click', function(event) {
@@ -346,7 +295,11 @@
             }
         }).then((result) => {
             if (result.isConfirmed) {
-                form.submit();
+                if (window.ShellNavigation) {
+                    window.ShellNavigation.submitForm(form);
+                } else {
+                    form.submit();
+                }
             }
         });
     }
@@ -392,7 +345,12 @@
     @endif
 </script>
 
-@stack('scripts')
+<template id="initial-module-scripts">
+    @stack('scripts')
+</template>
+
+@include('layouts.shell-navigation')
 
 </body>
 </html>
+@endif

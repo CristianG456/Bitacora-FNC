@@ -111,7 +111,7 @@
 <div style="display: block;">
 
         {{-- ── Casos Recientes ────────────────────────────────────── --}}
-    <div class="recent-cases-wrapper">
+    <div class="recent-cases-wrapper hidden sm:block">
 
         {{-- Header tabla --}}
         <div class="recent-cases-header" style="{{ !auth()->user()->tieneAlgunRol(['Administrador', 'Juridica']) ? 'display:none;' : '' }}">
@@ -222,5 +222,69 @@
 
 
 </div>
+
+@push('scripts')
+<script type="module">
+    document.addEventListener('nueva-notificacion-recibida', (e) => {
+        const notif = e.detail;
+
+        // Solo actualizar la tabla si es una notificación de nuevo caso (puedes ajustar esta lógica según el tipo)
+        if (notif.tipo === 'caso' || (notif.titulo && notif.titulo.toLowerCase().includes('nuevo caso'))) {
+            const tbody = document.querySelector('.tabla-casos tbody');
+            if (tbody) {
+                const tr = document.createElement('tr');
+
+                // Extraer el número de radicado del mensaje si es posible (ya que la notificación genérica envía un texto)
+                // O si tienes el objeto caso incrustado en metadata, úsalo:
+                const radicadoMatch = notif.mensaje.match(/CASO-[0-9\-]+/);
+                const radicado = radicadoMatch ? radicadoMatch[0] : 'Nuevo';
+
+                const radicadoCell = document.createElement('td');
+                const radicadoElement = document.createElement('span');
+                radicadoElement.className = 'radicado-link';
+                radicadoElement.textContent = radicado;
+                radicadoCell.appendChild(radicadoElement);
+
+                const tipoCell = document.createElement('td');
+                const tipoElement = document.createElement('span');
+                tipoElement.className = 'tipo-link';
+                tipoElement.textContent = '—';
+                tipoCell.appendChild(tipoElement);
+
+                const descriptionCell = document.createElement('td');
+                descriptionCell.className = 'td-desc';
+                const description = document.createElement('span');
+                description.className = 'desc-truncate';
+                description.textContent = notif.mensaje ?? '';
+                descriptionCell.appendChild(description);
+
+                const statusCell = document.createElement('td');
+                const status = document.createElement('span');
+                status.className = 'badge badge-pendiente';
+                status.textContent = 'En Proceso';
+                statusCell.appendChild(status);
+
+                const dateCell = document.createElement('td');
+                dateCell.className = 'td-date';
+                dateCell.textContent = new Date().toLocaleDateString();
+
+                const actionCell = document.createElement('td');
+                const link = document.createElement('a');
+                link.href = '/casos';
+                link.className = 'btn-ver';
+                link.textContent = 'Ver';
+                actionCell.appendChild(link);
+
+                tr.append(radicadoCell, tipoCell, descriptionCell, statusCell, dateCell, actionCell);
+                tbody.insertBefore(tr, tbody.firstChild);
+
+                // Update total count
+                const totalEl = document.querySelector('.stat-value.total');
+                if (totalEl) totalEl.innerText = parseInt(totalEl.innerText) + 1;
+            }
+        }
+    });
+</script>
+@endpush
 
 @endsection

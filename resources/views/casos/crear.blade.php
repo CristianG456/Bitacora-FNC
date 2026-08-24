@@ -160,15 +160,15 @@
     </div>
 
     <!-- BOTONES -->
-    <div class="flex justify-end gap-3 pt-8 border-t border-gray-200 mt-8">
+    <div class="flex flex-col sm:flex-row sm:justify-end gap-3 pt-8 border-t border-gray-200 mt-8">
 
         <a href="{{ route('dashboard') }}"
-        class="px-6 py-2 bg-gray-100 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-200 transition">
+        class="w-full sm:w-auto text-center px-6 py-3 bg-gray-100 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-200 transition">
             Cancelar
         </a>
 
         <button type="submit"
-            class="px-6 py-2 bg-[#c84661] hover:bg-[#b53a52] text-white text-sm font-medium rounded-md transition">
+            class="w-full sm:w-auto px-6 py-3 bg-[#c84661] hover:bg-[#b53a52] text-white text-sm font-medium rounded-md transition">
             Crear Caso
         </button>
 

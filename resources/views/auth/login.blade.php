@@ -105,6 +105,24 @@
 
     <!-- SCRIPT -->
     <script>
+        // Al cargar login: limpiar cualquier estado de pestaña anterior
+        sessionStorage.removeItem('tab_token');
+        document.querySelector('form') && document.querySelector('form').addEventListener('submit', function (event) {
+            var token = (typeof crypto !== 'undefined' && crypto.randomUUID)
+                ? crypto.randomUUID()
+                : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                    var r = Math.random() * 16 | 0;
+                    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+                });
+
+            sessionStorage.setItem('tab_token', token);
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'tab_token';
+            input.value = token;
+            event.currentTarget.appendChild(input);
+        });
+
         const checkbox = document.getElementById('recuperar');
         const boton = document.getElementById('btnLogin');
         const campoPassword = document.getElementById('campoPassword');

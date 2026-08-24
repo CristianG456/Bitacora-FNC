@@ -12,10 +12,23 @@ class LoginController extends Controller
     // 🔹 Vista login
     public function showLogin()
     {
+        if (Auth::check()) {
+            if (Auth::user()->force_password_change) {
+                return redirect()->route('password.change.form');
+            }
+
+            return app(\App\Http\Controllers\DashboardController::class)->index();
+        }
+
         return view('auth.login');
     }
 
     // 🔹 Login o solicitud recuperación
+    public function showTabLogin()
+    {
+        return view('auth.login');
+    }
+
     public function login(Request $request)
     {
         // Si viene en modo recuperación
@@ -86,10 +99,9 @@ class LoginController extends Controller
         //login normal
         $credentials = $request->validate([
             'email' => 'required|email',
-            'password' => 'required'
+            'password' => 'required',
         ]);
-
-        if (Auth::attempt($credentials)) {
+        if (Auth::attempt([...$credentials, 'activo' => true])) {
 
             $request->session()->regenerate();
 
@@ -97,7 +109,7 @@ class LoginController extends Controller
                 return redirect()->route('password.change.form');
             }
 
-            return redirect()->route('dashboard');
+            return redirect()->route('login');
         }
 
         // Registrar intento de login fallido en bitácora para trazabilidad

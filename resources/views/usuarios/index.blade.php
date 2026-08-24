@@ -124,7 +124,7 @@
                         @endif
                     </td>
                     @if(auth()->user()->tieneRol('Administrador'))
-                    <td class="px-6 py-4 text-right">
+                    <td class="px-6 py-4 text-right whitespace-nowrap">
                         <div class="flex items-center justify-end gap-2">
                             <a href="{{ route('usuarios.editar', $user->id) }}" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition" title="Editar">
                                 <i data-lucide="edit-2" style="width:16px;height:16px;"></i>

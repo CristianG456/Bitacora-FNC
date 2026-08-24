@@ -12,7 +12,7 @@
             <p class="text-gray-500 text-sm mt-1">Gestiona y revisa todos los casos jurídicos</p>
         </div>
         @if($esAdmin)
-        <a href="{{ route('casos.crear') }}" class="btn-primary w-full sm:w-auto justify-center">
+        <a href="{{ route('casos.crear') }}" class="btn-primary hidden sm:inline-flex w-full sm:w-auto justify-center">
             <i data-lucide="plus-circle" class="w-4 h-4"></i>
             Crear Nuevo Caso
         </a>
@@ -21,8 +21,8 @@
 </div>
 
 <!-- FILTROS Y BÚSQUEDA -->
-<div class="bg-white p-4 rounded-lg border border-gray-200 mb-6 flex items-center gap-4">
-    <form action="{{ route('casos.index') }}" method="GET" class="flex-1 flex flex-col sm:flex-row gap-4">
+<div class="bg-white p-4 rounded-lg border border-gray-200 mb-6 block sm:flex sm:items-center gap-4">
+    <form action="{{ route('casos.index') }}" method="GET" class="w-full flex flex-col sm:flex-row gap-4">
         
         <div class="relative flex-1">
             <i data-lucide="search" class="absolute left-3 top-2.5 text-gray-400 w-[18px] h-[18px]"></i>
