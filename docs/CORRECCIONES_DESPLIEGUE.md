@@ -110,6 +110,26 @@ Tras esto, `docker compose up -d` levanta el stack sin errores.
 - El `.env` de producción usa `APP_ENV=production`, `APP_DEBUG=false` y una
   contraseña de BD y admin definidas (no los valores por defecto).
 - MySQL solo expone `127.0.0.1:3310` (no accesible desde fuera del host).
-- Pendiente recomendado: exponer vía **Nginx Proxy Manager** + **Cloudflare
-  Tunnel** (el stack ya está en la red `infra-net`) para acceso por dominio con
-  SSL, en lugar de puerto IP:8002.
+- Acceso por dominio: se expone vía **Nginx Proxy Manager** (Proxy Host
+  `juridica.comitetolima.com` → `bitacora-nginx:80`) + **Cloudflare Tunnel**
+  (`juridica.comitetolima.com` → `nginx-proxy:80`); ambos en la red `infra-net`.
+
+---
+
+## Despliegue en dominio (juridica.comitetolima.com)
+
+En el `.env` de producción del servidor (no commiteado por contener secretos) se
+configuró:
+
+```env
+APP_URL=https://juridica.comitetolima.com
+SESSION_SECURE_COOKIE=true
+```
+
+Notas:
+- La app **no tiene** middleware que fuerce HTTPS (solo `EnsureUserIsActive`,
+  `ForcePasswordChange`, `PreventBackHistory`, `RoleMiddleware`), por lo que
+  `SESSION_SECURE_COOKIE=true` es seguro: el navegador llega por HTTPS vía
+  Cloudflare y la cookie `Secure` se evalúa del lado del cliente.
+- El app container fue recreado (`docker compose up -d --force-recreate app`)
+  para recargar el `.env` con los nuevos valores.
