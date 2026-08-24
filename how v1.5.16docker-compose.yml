@@ -1,0 +1,77 @@
+services:
+  app:
+    image: cristian123456/bitacora-fnc:v1.5.17
+    container_name: laravel_app_bitacora
+    restart: unless-stopped
+    working_dir: /var/www
+    environment:
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./Cafe/Apps/Bitacora-fnc/public:/var/www/public
+      - ./Cafe/Apps/Bitacora-fnc/storage:/var/www/storage
+    networks:
+      - internal
+    # Health check: verifica que php-fpm esté respondiendo
+    healthcheck:
+      test: ["CMD-SHELL", "php-fpm -t || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  webserver:
+    image: nginx:alpine
+    container_name: nginx_bitacora
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - ./Cafe/Apps/Bitacora-fnc/public:/var/www/public
+      - ./Cafe/Apps/Bitacora-fnc/storage:/var/www/storage
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - internal
+    # Health check: verifica que nginx devuelva respuesta HTTP
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost/up || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  db:
+    image: mysql:8
+    container_name: mysql_bitacora
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: laravel
+      # La contraseña se lee del .env (variable DB_ROOT_PASSWORD).
+      # OBLIGATORIO: cambiar esta contraseña antes del despliegue en producción.
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-CAMBIA_ESTA_CONTRASENA_EN_PRODUCCION}
+    ports:
+      # SEGURIDAD: solo expuesto en localhost para acceso de administración local.
+      # En producción pura, elimina estas líneas para que MySQL no sea accesible externamente.
+      - "127.0.0.1:3308:3306"
+    volumes:
+      - ./Cafe/Apps/Bitacora-fnc/mysql:/var/lib/mysql
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-CAMBIA_ESTA_CONTRASENA_EN_PRODUCCION}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  internal:
+    driver: bridge

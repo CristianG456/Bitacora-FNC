@@ -13,12 +13,15 @@ use App\Http\Controllers\TipoProcesoController;
 //  AUTENTICACIÓN (públicas)
 
 
+Route::get('/', [LoginController::class, 'showLogin'])->name('login');
+
 Route::middleware(['guest'])->group(function () {
-    Route::get('/', [LoginController::class, 'showLogin'])->name('login');
     Route::post('/login', [LoginController::class, 'login'])
         ->middleware('throttle:10,1')   // Máx 10 intentos por minuto por IP
         ->name('login.post');
 });
+
+Route::get('/login', [LoginController::class, 'showTabLogin'])->name('tab.login');
 
 Route::match(['get', 'post'], '/logout', [LoginController::class, 'logout'])->name('logout');
 

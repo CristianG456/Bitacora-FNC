@@ -1,0 +1,43 @@
+/* ── casos.css ── */
+
+/* Icon Sizes */
+.icon-sm { width: 14px; height: 14px; }
+.icon-md { width: 16px; height: 16px; }
+.icon-lg { width: 18px; height: 18px; }
+.icon-xl { width: 20px; height: 20px; }
+
+/* Specific Components */
+.info-icon {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.chat-send-icon {
+    margin-left: -2px;
+}
+
+/* Layout Utilities */
+.sticky-sidebar {
+    height: calc(100vh - 140px);
+    position: sticky;
+    top: 80px;
+}
+
+/* Chat bubble variants */
+.chat-bubble-mine {
+    background-color: #b11226;
+    color: white;
+}
+
+.chat-bubble-other {
+    background-color: #f3f4f6;
+    color: #1f2937;
+}
+
+.chat-btn-send {
+    background-color: #d28a96;
+}
+
+.chat-btn-send:hover {
+    background-color: #b11226;
+}

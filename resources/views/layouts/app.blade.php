@@ -1,9 +1,25 @@
+@if(request()->ajax())
+<div id="module-fragment" data-module-title="@yield('title')">
+    @yield('content')
+</div>
+<div id="module-styles">
+    @stack('styles')
+</div>
+<div id="module-scripts">
+    @stack('scripts')
+</div>
+<div id="module-flash"
+     data-success="{{ session('success') }}"
+     data-error="{{ session('error') ?: ($errors->any() ? $errors->first() : '') }}"></div>
+@else
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script>window.userId = @json(auth()->id());</script>
+    @vite(['resources/js/app.js'])
     <title>@yield('title', 'Sistema de Gestión de Casos Jurídicos')</title>
     <meta name="description" content="Sistema de Gestión de Casos Jurídicos - Federación Nacional de Cafeteros">
     
@@ -173,7 +189,7 @@
     {{-- Flash messages are handled by SweetAlert at the bottom of the file --}}
 
     {{-- Contenido de página --}}
-    <main class="page-content">
+    <main id="app-content" class="page-content">
         @yield('content')
     </main>
 
@@ -208,27 +224,42 @@
             .then(response => response.json())
             .then(data => {
                 const list = document.getElementById('notif-list');
-                list.innerHTML = '';
-                
+                list.replaceChildren();
+
                 if (data.length === 0) {
-                    list.innerHTML = '<div class="p-4 text-center text-sm text-gray-500">No tienes notificaciones.</div>';
+                    const empty = document.createElement('div');
+                    empty.className = 'p-4 text-center text-sm text-gray-500';
+                    empty.textContent = 'No tienes notificaciones.';
+                    list.appendChild(empty);
                     return;
                 }
 
                 data.forEach(n => {
                     const bg = n.leido ? 'bg-white' : 'bg-blue-50';
-                    const icon = n.tipo === 'success' ? '<i data-lucide="check-circle" class="w-4 h-4 text-green-500"></i>' : '<i data-lucide="info" class="w-4 h-4 text-blue-500"></i>';
-                    
-                    list.innerHTML += `
-                        <div class="p-3 border-b border-gray-50 flex gap-3 hover:bg-gray-50 transition ${bg}">
-                            <div class="mt-0.5 shrink-0">${icon}</div>
-                            <div>
-                                <h4 class="text-xs font-bold text-gray-800 mb-0.5">${n.titulo}</h4>
-                                <p class="text-xs text-gray-600 leading-snug">${n.mensaje}</p>
-                                <span class="text-[10px] text-gray-400 mt-1 block">${n.fecha}</span>
-                            </div>
-                        </div>
-                    `;
+                    const row = document.createElement('div');
+                    row.className = `p-3 border-b border-gray-50 flex gap-3 hover:bg-gray-50 transition ${bg}`;
+
+                    const iconWrapper = document.createElement('div');
+                    iconWrapper.className = 'mt-0.5 shrink-0';
+                    const icon = document.createElement('i');
+                    icon.dataset.lucide = n.tipo === 'success' ? 'check-circle' : 'info';
+                    icon.className = n.tipo === 'success' ? 'w-4 h-4 text-green-500' : 'w-4 h-4 text-blue-500';
+                    iconWrapper.appendChild(icon);
+
+                    const details = document.createElement('div');
+                    const title = document.createElement('h4');
+                    title.className = 'text-xs font-bold text-gray-800 mb-0.5';
+                    title.textContent = n.titulo ?? '';
+                    const message = document.createElement('p');
+                    message.className = 'text-xs text-gray-600 leading-snug';
+                    message.textContent = n.mensaje ?? '';
+                    const date = document.createElement('span');
+                    date.className = 'text-[10px] text-gray-400 mt-1 block';
+                    date.textContent = n.fecha ?? '';
+
+                    details.append(title, message, date);
+                    row.append(iconWrapper, details);
+                    list.appendChild(row);
                 });
                 lucide.createIcons();
             });
@@ -264,7 +295,11 @@
             }
         }).then((result) => {
             if (result.isConfirmed) {
-                form.submit();
+                if (window.ShellNavigation) {
+                    window.ShellNavigation.submitForm(form);
+                } else {
+                    form.submit();
+                }
             }
         });
     }
@@ -310,7 +345,12 @@
     @endif
 </script>
 
-@stack('scripts')
+<template id="initial-module-scripts">
+    @stack('scripts')
+</template>
+
+@include('layouts.shell-navigation')
 
 </body>
 </html>
+@endif

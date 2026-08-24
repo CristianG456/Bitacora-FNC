@@ -3,7 +3,7 @@
 @section('title', 'Tipos de Documento')
 
 @push('styles')
-    <link rel="stylesheet" href="{{ asset('css/tipos.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/tipos.css?v=' . time()) }}">
 @endpush
 
 @section('content')
@@ -33,7 +33,7 @@
             <tbody>
                 @forelse($tipos as $tipo)
                 <tr>
-                    <td>
+                    <td data-label="Tipo">
                         <div class="flex items-start gap-3">
                             <i data-lucide="file-text" class="w-5 h-5 text-[#b11226] mt-0.5 shrink-0"></i>
                             <div>
@@ -44,11 +44,11 @@
                             </div>
                         </div>
                     </td>
-                    <td>
+                    <td data-label="Código">
                         <span class="codigo-box">{{ $tipo->codigo }}</span>
                     </td>
-                    <td>
-                        <div class="flex flex-wrap gap-1.5">
+                    <td data-label="Subtipos">
+                        <div class="flex flex-wrap gap-1.5 justify-end">
                             @forelse($tipo->subtipos as $sub)
                                 <span class="codigo-box" title="{{ $sub->nombre }}">{{ $sub->codigo }}</span>
                             @empty
@@ -56,18 +56,18 @@
                             @endforelse
                         </div>
                     </td>
-                    <td>
+                    <td data-label="Estado" class="whitespace-nowrap">
                         <span class="badge-estado {{ $tipo->activo ? 'activo' : 'inactivo' }}">
                             {{ $tipo->activo ? 'activo' : 'inactivo' }}
                         </span>
                     </td>
-                    <td>
+                    <td data-label="Acciones" class="whitespace-nowrap">
                         <div class="flex items-center justify-end gap-2">
-                            <button onclick="abrirModalSubtipos({{ $tipo->id }}, '{{ addslashes($tipo->nombre) }}', '{{ $tipo->codigo }}')" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-md transition">
+                            <button type="button" onclick="abrirModalSubtiposPorId({{ $tipo->id }})" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-md transition">
                                 <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-                                Ver subtipos
+                                Ver
                             </button>
-                            <button onclick="abrirModalEditarTipo({{ $tipo->id }}, '{{ addslashes($tipo->nombre) }}', '{{ $tipo->codigo }}', '{{ addslashes($tipo->descripcion) }}')" class="p-1.5 text-gray-400 hover:text-blue-600 border border-transparent hover:border-blue-100 hover:bg-blue-50 rounded-md transition" title="Editar">
+                            <button type="button" onclick="abrirModalEditarTipoPorId({{ $tipo->id }})" class="p-1.5 text-gray-400 hover:text-blue-600 border border-transparent hover:border-blue-100 hover:bg-blue-50 rounded-md transition" title="Editar">
                                 <i data-lucide="pencil" class="w-4 h-4"></i>
                             </button>
                             <form action="{{ route('tipos.estado', $tipo->id) }}" method="POST" class="inline" onsubmit="confirmarAccion(event, this, '¿Cambiar estado?', 'Esto afectará la disponibilidad de este tipo en nuevos casos.');">
@@ -242,7 +242,17 @@
 <script>
     // Variables globales para el modal de subtipos
     let currentTipoId = null;
-    const tiposData = @json($tipos);
+    const tiposData = {{ Illuminate\Support\Js::from($tipos) }};
+
+    function abrirModalEditarTipoPorId(id) {
+        const tipo = tiposData.find(item => Number(item.id) === Number(id));
+        if (tipo) abrirModalEditarTipo(tipo.id, tipo.nombre, tipo.codigo, tipo.descripcion);
+    }
+
+    function abrirModalSubtiposPorId(id) {
+        const tipo = tiposData.find(item => Number(item.id) === Number(id));
+        if (tipo) abrirModalSubtipos(tipo.id, tipo.nombre, tipo.codigo);
+    }
 
     function abrirModalEditarTipo(id, nombre, codigo, desc) {
         document.getElementById('edit-tipo-nombre').value = nombre;
@@ -255,29 +265,44 @@
     function abrirModalSubtipos(tipoId, nombre, codigo) {
         currentTipoId = tipoId;
         document.getElementById('subtipos-title').textContent = `Subtipos de: ${nombre} (${codigo})`;
-        
         const tipoInfo = tiposData.find(t => t.id === tipoId);
         const tbody = document.getElementById('subtipos-tbody');
-        tbody.innerHTML = '';
-
+        tbody.replaceChildren();
         if (tipoInfo && tipoInfo.subtipos && tipoInfo.subtipos.length > 0) {
             tipoInfo.subtipos.forEach(sub => {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="px-4 py-3 text-gray-900">${sub.nombre}</td>
-                    <td class="px-4 py-3 text-center"><span class="codigo-box">${sub.codigo}</span></td>
-                    <td class="px-4 py-3 text-right">
-                        <button onclick="editarSubtipo(${tipoId}, ${sub.id}, '${sub.nombre.replace(/'/g, "\\'")}', '${sub.codigo}')" class="p-1.5 text-gray-400 hover:text-blue-600 border border-gray-200 hover:border-blue-200 bg-white rounded-md transition inline-flex items-center justify-center">
-                            <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
-                        </button>
-                    </td>
-                `;
+                const nameCell = document.createElement('td');
+                nameCell.className = 'px-4 py-3 text-gray-900';
+                nameCell.textContent = sub.nombre ?? '';
+                const codeCell = document.createElement('td');
+                codeCell.className = 'px-4 py-3 text-center';
+                const code = document.createElement('span');
+                code.className = 'codigo-box';
+                code.textContent = sub.codigo ?? '';
+                codeCell.appendChild(code);
+                const actionCell = document.createElement('td');
+                actionCell.className = 'px-4 py-3 text-right';
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'p-1.5 text-gray-400 hover:text-blue-600 border border-gray-200 hover:border-blue-200 bg-white rounded-md transition inline-flex items-center justify-center';
+                button.addEventListener('click', () => editarSubtipo(tipoId, sub.id, sub.nombre, sub.codigo));
+                const icon = document.createElement('i');
+                icon.dataset.lucide = 'pencil';
+                icon.className = 'w-3.5 h-3.5';
+                button.appendChild(icon);
+                actionCell.appendChild(button);
+                tr.append(nameCell, codeCell, actionCell);
                 tbody.appendChild(tr);
             });
         } else {
-            tbody.innerHTML = `<tr><td colspan="3" class="px-4 py-8 text-center text-gray-500 italic text-sm">No hay subtipos creados.</td></tr>`;
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.colSpan = 3;
+            cell.className = 'px-4 py-8 text-center text-gray-500 italic text-sm';
+            cell.textContent = 'No hay subtipos creados.';
+            row.appendChild(cell);
+            tbody.appendChild(row);
         }
-
         lucide.createIcons();
         document.getElementById('modal-ver-subtipos').classList.remove('hidden');
     }
@@ -288,7 +313,7 @@
         document.getElementById('title-modal-subtipo').textContent = 'Agregar Subtipo';
         document.getElementById('btn-submit-subtipo').textContent = 'Agregar';
         document.getElementById('form-subtipo').action = `/tipos/${currentTipoId}/subtipos`;
-        document.getElementById('method-container').innerHTML = '';
+        document.getElementById('method-container').replaceChildren();
         
         document.getElementById('input-subtipo-nombre').value = '';
         document.getElementById('input-subtipo-codigo').value = '';
@@ -302,7 +327,11 @@
         document.getElementById('title-modal-subtipo').textContent = 'Editar Subtipo';
         document.getElementById('btn-submit-subtipo').textContent = 'Guardar';
         document.getElementById('form-subtipo').action = `/tipos/${tipoId}/subtipos/${subtipoId}`;
-        document.getElementById('method-container').innerHTML = '<input type="hidden" name="_method" value="PUT">';
+        const methodInput = document.createElement('input');
+        methodInput.type = 'hidden';
+        methodInput.name = '_method';
+        methodInput.value = 'PUT';
+        document.getElementById('method-container').replaceChildren(methodInput);
         
         document.getElementById('input-subtipo-nombre').value = nombre;
         document.getElementById('input-subtipo-codigo').value = codigo;

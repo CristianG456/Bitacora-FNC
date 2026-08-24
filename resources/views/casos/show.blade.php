@@ -114,9 +114,9 @@
 
             <div class="space-y-3">
                 @forelse($caso->usuarios as $user)
-                <div class="border border-gray-200 rounded-lg p-4 flex items-center justify-between">
+                <div class="border border-gray-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500">
+                        <div class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 shrink-0">
                             <i data-lucide="user" style="width:20px;height:20px;"></i>
                         </div>
                         <div>
@@ -131,7 +131,7 @@
                         </div>
                     </div>
                     
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-3 sm:ml-4">
                         @php
                             $tareasUsuario = $caso->tareas->where('user_id', $user->id);
                             $totalUsr = $tareasUsuario->count();
@@ -217,7 +217,7 @@
             
             <div class="space-y-3">
                 @forelse($caso->tareas as $tarea)
-                <div class="border border-gray-200 rounded-lg p-4 flex items-center justify-between transition hover:border-gray-300">
+                <div class="border border-gray-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between transition hover:border-gray-300 gap-3">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-1">
                             <span class="text-xs font-bold text-gray-400">#{{ $tarea->orden ?? $loop->iteration }}</span>
@@ -234,7 +234,7 @@
                         @endif
                     </div>
                     
-                    <div class="flex items-center gap-2 ml-4">
+                    <div class="flex items-center gap-2 sm:ml-4">
                         @if($esAdmin && $caso->estado !== 'Finalizado')
                         <form action="{{ route('tareas.eliminar', [$caso->id, $tarea->id]) }}" method="POST" class="inline" onsubmit="confirmarAccion(event, this, '¿Eliminar tarea?', 'Esta acción borrará la tarea de forma permanente.');">
                             @csrf
@@ -605,6 +605,29 @@
     }
 
     // Enviar mensaje por AJAX
+    function appendSafeChatMessage(chatContainer, alignment, bubbleClasses, author, authorClasses, message, date) {
+        const wrapper = document.createElement('div');
+        wrapper.className = `flex flex-col ${alignment}`;
+
+        const bubble = document.createElement('div');
+        bubble.className = bubbleClasses;
+
+        const authorElement = document.createElement('span');
+        authorElement.className = authorClasses;
+        authorElement.textContent = author ?? '';
+
+        const messageElement = document.createElement('p');
+        messageElement.className = 'text-[13.5px] leading-relaxed';
+        messageElement.textContent = message ?? '';
+
+        const dateElement = document.createElement('span');
+        dateElement.className = 'text-[10px] text-gray-400 mt-1 mx-1';
+        dateElement.textContent = date ?? '';
+
+        bubble.append(authorElement, messageElement);
+        wrapper.append(bubble, dateElement);
+        chatContainer.appendChild(wrapper);
+    }
     const formChat = document.getElementById('form-chat');
     if (formChat) {
         formChat.addEventListener('submit', function(e) {
@@ -637,20 +660,15 @@
                     // Quitar mensaje de "Empieza la conversación" si existe
                     const emptyMsg = chatContainer.querySelector('.italic');
                     if(emptyMsg) emptyMsg.remove();
-
-                    // Crear y agregar nueva burbuja
-                    const div = document.createElement('div');
-                    div.className = 'flex flex-col items-end';
-                    div.innerHTML = `
-                        <div class="bg-[#b11226] text-white rounded-xl p-3 max-w-[85%] relative shadow-sm">
-                            <span class="block text-[11px] font-bold opacity-90 mb-1 text-red-100">
-                                Tú
-                            </span>
-                            <p class="text-[13.5px] leading-relaxed">${data.mensaje}</p>
-                        </div>
-                        <span class="text-[10px] text-gray-400 mt-1 mx-1">${data.fecha}</span>
-                    `;
-                    chatContainer.appendChild(div);
+                    appendSafeChatMessage(
+                        chatContainer,
+                        'items-end',
+                        'bg-[#b11226] text-white rounded-xl p-3 max-w-[85%] relative shadow-sm',
+                        'Tú',
+                        'block text-[11px] font-bold opacity-90 mb-1 text-red-100',
+                        data.mensaje,
+                        data.fecha
+                    );
                     
                     // Limpiar input y bajar scroll
                     input.value = '';
@@ -668,6 +686,31 @@
             });
         });
     }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (window.Echo) {
+            window.Echo.private('caso.{{ $caso->id }}')
+                .listen('.NuevoMensajeCaso', (e) => {
+                    if (e.mensaje.user_id != window.userId) {
+                        const chatContainer = document.getElementById('chat-container');
+                        if(chatContainer) {
+                            const emptyMsg = chatContainer.querySelector('.italic');
+                            if(emptyMsg) emptyMsg.remove();
+                            appendSafeChatMessage(
+                                chatContainer,
+                                'items-start',
+                                'bg-gray-100 text-gray-800 rounded-xl p-3 max-w-[85%] relative shadow-sm',
+                                e.mensaje.user_name,
+                                'block text-[11px] font-bold opacity-90 mb-1 text-gray-600',
+                                e.mensaje.mensaje,
+                                e.mensaje.fecha
+                            );
+                            chatContainer.scrollTop = chatContainer.scrollHeight;
+                        }
+                    }
+                });
+        }
+    });
 </script>
 @endpush
 

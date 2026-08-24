@@ -1,6 +1,6 @@
 services:
   app:
-    image: cristian123456/bitacora-fnc:v1.5.17
+    image: cristian123456/bitacora-fnc:v1.5.18
     container_name: laravel_app_bitacora
     restart: unless-stopped
     working_dir: /var/www
@@ -15,6 +15,7 @@ services:
     volumes:
       - ./Cafe/Apps/Bitacora-fnc/public:/var/www/public
       - ./Cafe/Apps/Bitacora-fnc/storage:/var/www/storage
+      - ./resources/views:/var/www/resources/views
     networks:
       - internal
     # Health check: verifica que php-fpm esté respondiendo
@@ -24,6 +25,25 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  reverb:
+    image: cristian123456/bitacora-fnc:v1.5.18
+    container_name: reverb_bitacora
+    restart: unless-stopped
+    working_dir: /var/www
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      - ./Cafe/Apps/Bitacora-fnc/public:/var/www/public
+      - ./Cafe/Apps/Bitacora-fnc/storage:/var/www/storage
+    networks:
+      - internal
 
   webserver:
     image: nginx:alpine
@@ -60,7 +80,7 @@ services:
     ports:
       # SEGURIDAD: solo expuesto en localhost para acceso de administración local.
       # En producción pura, elimina estas líneas para que MySQL no sea accesible externamente.
-      - "127.0.0.1:3308:3306"
+      - "127.0.0.1:3309:3306"
     volumes:
       - ./Cafe/Apps/Bitacora-fnc/mysql:/var/lib/mysql
     networks:
