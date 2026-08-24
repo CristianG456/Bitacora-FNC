@@ -99,76 +99,186 @@
                 </div>
             </div>
 
-            <!-- Configuración de Envío y Respaldo -->
-            <div>
-                <h2 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2">
-                    <i data-lucide="settings" class="text-gray-500"></i> Opciones de Respaldo
+            <!-- Panel informativo de respaldos -->
+            <div class="min-w-0">
+                @php
+                    $estadoClases = [
+                        'operativo' => 'bg-green-100 text-green-800 border-green-200',
+                        'advertencia' => 'bg-amber-100 text-amber-800 border-amber-200',
+                        'error' => 'bg-red-100 text-red-800 border-red-200',
+                    ];
+                    $estadoEtiquetas = [
+                        'operativo' => 'OPERATIVO',
+                        'advertencia' => 'ADVERTENCIA',
+                        'error' => 'ERROR',
+                    ];
+                    $estadoActual = $resumenRespaldos['status'];
+                    $ultimoRespaldo = $resumenRespaldos['latest'];
+                @endphp
+
+                <h2 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center justify-between gap-3">
+                    <span class="flex items-center gap-2">
+                        <i data-lucide="activity" class="text-gray-500"></i> Estado de Respaldos
+                    </span>
+                    <span class="px-3 py-1 rounded-full border text-xs font-bold {{ $estadoClases[$estadoActual] }}">
+                        {{ $estadoEtiquetas[$estadoActual] }}
+                    </span>
                 </h2>
-                
+
                 <div class="space-y-4">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Email Remitente</label>
-                            <input type="email" name="sender_email" value="{{ old('sender_email', $config->sender_email) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
+                    @if(!$config->exists)
+                        <div class="p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-sm flex gap-2">
+                            <i data-lucide="triangle-alert" class="shrink-0 mt-0.5" style="width:16px;height:16px;"></i>
+                            <span>No existe una configuración de respaldos guardada.</span>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre Remitente</label>
-                            <input type="text" name="sender_name" value="{{ old('sender_name', $config->sender_name) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
-                        </div>
-                    </div>
+                    @endif
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Correos Destino</label>
-                        <textarea name="recipient_emails" required rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none" placeholder="correo1@ejemplo.com, correo2@ejemplo.com">{{ old('recipient_emails', is_array($config->recipient_emails) ? implode(', ', $config->recipient_emails) : $config->recipient_emails) }}</textarea>
-                        <p class="text-xs text-gray-500 mt-1">Separados por comas.</p>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Frecuencia</label>
-                            <select name="backup_frequency" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none bg-white">
-                                <option value="diario" {{ old('backup_frequency', $config->backup_frequency) == 'diario' ? 'selected' : '' }}>Diario</option>
-                                <option value="semanal" {{ old('backup_frequency', $config->backup_frequency) == 'semanal' ? 'selected' : '' }}>Semanal</option>
-                                <option value="mensual" {{ old('backup_frequency', $config->backup_frequency) == 'mensual' ? 'selected' : '' }}>Mensual</option>
-                            </select>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                            <div class="flex items-center gap-2 text-sm font-bold text-gray-800 mb-3">
+                                <i data-lucide="history" class="text-blue-600" style="width:16px;height:16px;"></i>
+                                Último respaldo
+                            </div>
+                            @if($ultimoRespaldo)
+                                <p class="text-sm font-semibold text-gray-900">{{ $ultimoRespaldo->created_at->format('d/m/Y - h:i a') }}</p>
+                                <dl class="mt-3 space-y-2 text-xs">
+                                    <div class="flex justify-between gap-3"><dt class="text-gray-500">Estado</dt><dd class="font-semibold {{ $ultimoRespaldo->status === 'exitoso' ? 'text-green-700' : 'text-red-700' }}">{{ $ultimoRespaldo->status === 'exitoso' ? 'Completado' : 'Fallido' }}</dd></div>
+                                    <div class="flex justify-between gap-3"><dt class="text-gray-500">Destino</dt><dd class="font-semibold text-gray-800 text-right">{{ $ultimoRespaldo->storage_provider === 'r2' ? ($ultimoRespaldo->file_path && file_exists($ultimoRespaldo->file_path) ? 'Local + Cloudflare R2' : 'Cloudflare R2') : 'Local' }}</dd></div>
+                                    <div class="flex justify-between gap-3"><dt class="text-gray-500">Tamaño</dt><dd class="font-semibold text-gray-800">{{ $ultimoRespaldo->file_size > 0 ? number_format($ultimoRespaldo->file_size / 1048576, 2) . ' MB' : 'No disponible' }}</dd></div>
+                                </dl>
+                            @else
+                                <p class="text-sm text-gray-500">No disponible</p>
+                            @endif
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Hora de Ejecución</label>
-                            <input type="time" name="backup_time" value="{{ old('backup_time', $config->backup_time ? \Carbon\Carbon::parse($config->backup_time)->format('H:i') : '00:00') }}" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
-                        </div>
-                    </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña del ZIP</label>
-                        <input type="text" name="backup_password" value="{{ old('backup_password', $config->backup_password) }}" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
-                        <p class="text-xs text-gray-500 mt-1">Si se especifica, el archivo ZIP generado estará protegido.</p>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Máximo backups (Local)</label>
-                            <input type="number" name="max_backups" value="{{ old('max_backups', $config->max_backups ?? 10) }}" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none bg-white">
-                            <p class="text-xs text-gray-500 mt-1">0 para ilimitado.</p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Días retención (Local)</label>
-                            <input type="number" name="retention_days" value="{{ old('retention_days', $config->retention_days) }}" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
-                            <p class="text-xs text-gray-500 mt-1">Elimina backups locales mayores a X días.</p>
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                            <div class="flex items-center gap-2 text-sm font-bold text-gray-800 mb-3">
+                                <i data-lucide="calendar-clock" class="text-blue-600" style="width:16px;height:16px;"></i>
+                                Próximo respaldo
+                            </div>
+                            @if($resumenRespaldos['next_run'])
+                                <p class="text-sm font-semibold text-gray-900">{{ $resumenRespaldos['next_run']->format('d/m/Y - h:i a') }}</p>
+                                <div class="flex justify-between gap-3 mt-3 text-xs">
+                                    <span class="text-gray-500">Frecuencia</span>
+                                    <span class="font-semibold text-gray-800">{{ ucfirst($config->backup_frequency) }}</span>
+                                </div>
+                            @else
+                                <p class="text-sm text-gray-500">No hay respaldo automático programado</p>
+                            @endif
                         </div>
                     </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Días retención (Cloudflare R2)</label>
-                        <input type="number" name="r2_retention_days" value="{{ old('r2_retention_days', $config->r2_retention_days) }}" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
-                        <p class="text-xs text-gray-500 mt-1">Elimina backups en R2 mayores a X días (0 para ilimitado).</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="rounded-lg border border-gray-200 p-4">
+                            <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><i data-lucide="database" style="width:16px;height:16px;"></i> Copias disponibles</h3>
+                            <dl class="space-y-2 text-sm">
+                                <div class="flex justify-between gap-3"><dt class="text-gray-500">Respaldos locales</dt><dd class="font-bold text-gray-800">{{ $resumenRespaldos['local_copies'] ?? 'No disponible' }}</dd></div>
+                                <div class="flex justify-between gap-3"><dt class="text-gray-500">Cloudflare R2</dt><dd class="font-bold text-gray-800">{{ $resumenRespaldos['r2_copies'] ?? 'No disponible' }}</dd></div>
+                            </dl>
+                            @if($resumenRespaldos['r2_copies'] === null && $resumenRespaldos['r2_records'] > 0)
+                                <p class="mt-2 text-[11px] text-gray-500">{{ $resumenRespaldos['r2_records'] }} registro(s) R2 en historial, sin verificación remota.</p>
+                            @endif
+                        </div>
+
+                        <div class="rounded-lg border border-gray-200 p-4">
+                            <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><i data-lucide="shield-check" style="width:16px;height:16px;"></i> Retención</h3>
+                            <dl class="space-y-2 text-sm">
+                                <div class="flex justify-between gap-3"><dt class="text-gray-500">Local</dt><dd class="font-bold text-gray-800 text-right">@if($config->exists){{ ($config->max_backups ?? 0) > 0 ? $config->max_backups . ' copias' : 'Sin límite de copias' }}{{ ($config->retention_days ?? 0) > 0 ? ' / ' . $config->retention_days . ' días' : '' }}@else No disponible @endif</dd></div>
+                                <div class="flex justify-between gap-3"><dt class="text-gray-500">Cloudflare R2</dt><dd class="font-bold text-gray-800">@if(!$config->exists) No disponible @elseif(($config->r2_retention_days ?? 0) > 0) {{ $config->r2_retention_days }} días @else Sin límite configurado @endif</dd></div>
+                            </dl>
+                        </div>
                     </div>
 
-                    <div class="flex items-center pt-2">
-                        <input type="checkbox" id="is_active" name="is_active" value="1" {{ old('is_active', $config->is_active) ? 'checked' : '' }} class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
-                        <label for="is_active" class="ml-2 block text-sm text-gray-900 font-medium">
-                            Activar respaldos automáticos
-                        </label>
+                    <div class="rounded-lg border {{ $resumenRespaldos['latest_error'] ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50' }} p-4">
+                        <h3 class="text-sm font-bold {{ $resumenRespaldos['latest_error'] ? 'text-red-800' : 'text-green-800' }} flex items-center gap-2">
+                            <i data-lucide="{{ $resumenRespaldos['latest_error'] ? 'circle-alert' : 'circle-check' }}" style="width:16px;height:16px;"></i>
+                            Último error
+                        </h3>
+                        @if($resumenRespaldos['latest_error'])
+                            <p class="mt-2 text-xs font-semibold text-red-800">{{ $resumenRespaldos['latest_error']->created_at->format('d/m/Y - h:i a') }}</p>
+                            <p class="mt-1 text-sm text-red-700">El último intento de respaldo no se completó correctamente.</p>
+                        @else
+                            <p class="mt-2 text-sm text-green-700">Sin errores recientes</p>
+                        @endif
                     </div>
+
+                    <div class="rounded-lg border border-gray-200 overflow-hidden">
+                        <div class="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center gap-2">
+                            <i data-lucide="list" class="text-gray-500" style="width:16px;height:16px;"></i>
+                            <h3 class="text-sm font-bold text-gray-800">Historial reciente</h3>
+                        </div>
+                        <div class="divide-y divide-gray-100">
+                            @forelse($resumenRespaldos['recent'] as $registro)
+                                <div class="p-3 grid grid-cols-1 sm:grid-cols-[1.2fr_1fr_auto_auto] gap-2 sm:gap-3 sm:items-center text-xs">
+                                    <div><span class="text-gray-500 sm:hidden">Fecha: </span><span class="font-semibold text-gray-800">{{ $registro->created_at->format('d/m/Y - H:i') }}</span></div>
+                                    <div><span class="text-gray-500 sm:hidden">Destino: </span><span class="text-gray-700">{{ $registro->storage_provider === 'r2' ? 'Cloudflare R2' : 'Local' }}</span></div>
+                                    <div class="text-gray-700"><span class="text-gray-500 sm:hidden">Tamaño: </span>{{ $registro->file_size > 0 ? number_format($registro->file_size / 1048576, 2) . ' MB' : 'No disponible' }}</div>
+                                    <div><span class="inline-flex px-2 py-1 rounded-full font-bold {{ $registro->status === 'exitoso' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">{{ $registro->status === 'exitoso' ? 'Completado' : 'Fallido' }}</span></div>
+                                </div>
+                            @empty
+                                <p class="p-4 text-sm text-gray-500 text-center">No existe historial estructurado disponible.</p>
+                            @endforelse
+                        </div>
+                    </div>
+
+                    <details class="rounded-lg border border-gray-200 bg-white">
+                        <summary class="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-2">
+                            <i data-lucide="settings-2" style="width:16px;height:16px;"></i>
+                            Configuración avanzada
+                        </summary>
+                        <div class="p-4 border-t border-gray-200 space-y-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Email Remitente</label>
+                                    <input type="email" name="sender_email" value="{{ old('sender_email', $config->sender_email) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Nombre Remitente</label>
+                                    <input type="text" name="sender_name" value="{{ old('sender_name', $config->sender_name) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Correos Destino</label>
+                                <textarea name="recipient_emails" required rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none" placeholder="correo1@ejemplo.com, correo2@ejemplo.com">{{ old('recipient_emails', is_array($config->recipient_emails) ? implode(', ', $config->recipient_emails) : $config->recipient_emails) }}</textarea>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Frecuencia</label>
+                                    <select name="backup_frequency" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none bg-white">
+                                        <option value="diario" {{ old('backup_frequency', $config->backup_frequency) == 'diario' ? 'selected' : '' }}>Diario</option>
+                                        <option value="semanal" {{ old('backup_frequency', $config->backup_frequency) == 'semanal' ? 'selected' : '' }}>Semanal</option>
+                                        <option value="mensual" {{ old('backup_frequency', $config->backup_frequency) == 'mensual' ? 'selected' : '' }}>Mensual</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Hora de Ejecución</label>
+                                    <input type="time" name="backup_time" value="{{ old('backup_time', $config->backup_time ? \Carbon\Carbon::parse($config->backup_time)->format('H:i') : '00:00') }}" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña del ZIP</label>
+                                <input type="password" name="backup_password" value="" placeholder="{{ $config->backup_password ? 'Configurada; dejar vacío para conservar' : 'Sin configurar' }}" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Máximo backups (Local)</label>
+                                    <input type="number" name="max_backups" value="{{ old('max_backups', $config->max_backups ?? 10) }}" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none bg-white">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Días retención (Local)</label>
+                                    <input type="number" name="retention_days" value="{{ old('retention_days', $config->retention_days) }}" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Días retención (Cloudflare R2)</label>
+                                <input type="number" name="r2_retention_days" value="{{ old('r2_retention_days', $config->r2_retention_days) }}" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
+                            </div>
+                            <div class="flex items-center pt-2">
+                                <input type="checkbox" id="is_active" name="is_active" value="1" {{ old('is_active', $config->is_active) ? 'checked' : '' }} class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                                <label for="is_active" class="ml-2 block text-sm text-gray-900 font-medium">Activar respaldos automáticos</label>
+                            </div>
+                        </div>
+                    </details>
                 </div>
             </div>
         </div>
@@ -249,7 +359,7 @@
                                 <i data-lucide="check-circle" style="width:12px;height:12px;"></i> Exitoso
                             </span>
                         @else
-                            <span class="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold flex items-center w-max gap-1 cursor-pointer" title="{{ $hist->error_message }}">
+                            <span class="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold flex items-center w-max gap-1 cursor-pointer" title="El respaldo no se completó correctamente">
                                 <i data-lucide="x-circle" style="width:12px;height:12px;"></i> Fallido
                             </span>
                         @endif
