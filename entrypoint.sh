@@ -1,42 +1,46 @@
 #!/bin/sh
-set -e
+set -eu
 
-echo "=== Iniciando contenedor de la aplicación ==="
+echo "=== Iniciando contenedor de la aplicacion ==="
+: "${DB_HOST:?DB_HOST es obligatorio}"
+: "${DB_PORT:=3306}"
+: "${DB_DATABASE:?DB_DATABASE es obligatorio}"
+: "${DB_USERNAME:?DB_USERNAME es obligatorio}"
+: "${DB_PASSWORD:?DB_PASSWORD es obligatorio}"
+: "${ADMIN_EMAIL:?ADMIN_EMAIL es obligatorio}"
+: "${ADMIN_PASSWORD:?ADMIN_PASSWORD es obligatorio}"
 
-# ── Migraciones ────────────────────────────────────────────────────────────
-# Se verifica si hay migraciones pendientes antes de ejecutarlas.
-# En producción, considera ejecutar migraciones manualmente antes de desplegar.
-echo "Verificando migraciones pendientes..."
-PENDING=$(php artisan migrate:status 2>/dev/null | grep -c "Pending" || true)
+echo "Esperando disponibilidad de MySQL..."
+until MYSQL_PWD="$DB_PASSWORD" mysqladmin ping -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USERNAME" --silent; do
+    sleep 3
+done
 
-if [ "$PENDING" -gt 0 ]; then
-    echo "⚠️  Se encontraron $PENDING migraciones pendientes. Ejecutando..."
-    php artisan migrate --force
-    echo "✅ Migraciones aplicadas."
-else
-    echo "✅ No hay migraciones pendientes."
+echo "Aplicando migraciones pendientes..."
+php artisan migrate --force
+
+table_count() {
+    MYSQL_PWD="$DB_PASSWORD" mysql -h "$DB_HOST" -P "$DB_PORT" \
+        -u "$DB_USERNAME" "$DB_DATABASE" --batch --skip-column-names \
+        -e "SELECT COUNT(*) FROM $1;"
+}
+
+# Estos seeders usan INSERT: solo se ejecutan para tablas completamente vacias.
+if [ "$(table_count tipos_proceso)" -eq 0 ]; then
+    php artisan db:seed --class=TipoProcesoSeeder --force
 fi
-
-# Crear administrador a partir de variables de entorno
+if [ "$(table_count subtipos_proceso)" -eq 0 ]; then
+    php artisan db:seed --class=SubtipoProcesoSeeder --force
+fi
+# RolesSeeder usa updateOrInsert: completa faltantes sin duplicar ni borrar.
+php artisan db:seed --class=RolesSeeder --force
+# No reemplaza un administrador ya existente.
 php artisan app:create-admin
 
-# Restaurar la carpeta public si el Bind Mount la dejó vacía
-if [ -z "$(ls -A /var/www/public)" ]; then
-    echo "Carpeta public vacía detectada. Restaurando archivos desde respaldo..."
-    cp -r /tmp/public_stash/* /var/www/public/
-fi
-
-# Asegurar que la estructura de carpetas exista (crucial al usar Bind Mounts vacíos)
-mkdir -p /var/www/storage/framework/cache/data
-mkdir -p /var/www/storage/framework/sessions
-mkdir -p /var/www/storage/framework/views
-mkdir -p /var/www/storage/logs
-mkdir -p /var/www/bootstrap/cache
-
-# Ajustar permisos para que el servidor web (www-data) pueda escribir
+mkdir -p /var/www/storage/framework/cache/data \
+    /var/www/storage/framework/sessions /var/www/storage/framework/views \
+    /var/www/storage/logs /var/www/bootstrap/cache
 chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 chmod -R 775 /var/www/storage /var/www/bootstrap/cache
 
 echo "=== Iniciando php-fpm ==="
-# Iniciar el proceso principal (php-fpm)
 exec php-fpm
