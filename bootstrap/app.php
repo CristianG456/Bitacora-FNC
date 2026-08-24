@@ -22,6 +22,11 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->redirectUsersTo('/dashboard');
+
+        // Confiar en el proxy inverso (NPM/Cloudflare) para que Laravel
+        // detecte HTTPS via X-Forwarded-Proto y genere URLs absolutas https
+        // (corrige Mixed Content en formularios detras de proxy).
+        $middleware->trustProxies(at: ['*']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

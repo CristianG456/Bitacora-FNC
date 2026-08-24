@@ -1,0 +1,116 @@
+name: bitacora-fnc
+
+# Stack adaptado para Portainer (infra-base: infra-net externa + NPM)
+# Basado en docker-compose.yml original pero corregido para despliegue manual en Portainer
+# - Volúmenes nombrados (no bind mounts ./Cafe/Apps/... que fallan en Portainer)
+# - Red infra-net externa para integración con NPM/Kopia/Uptime Kuma
+# - Puertos sin colisión con elecciones-fnc (8080/8081)
+#
+# CORRECCIONES (ver docs/CORRECCIONES_DESPLIEGUE.md):
+#  - Servicio 'reverb' ELIMINADO: montaba storage como :ro y el entrypoint ignora
+#    el CMD (siempre ejecuta php-fpm), causando crash loop. Re-habilitar solo tras
+#    corregir entrypoint.sh para soportar CMD (exec "$@").
+#  - Healthcheck de webserver corregido: wget -q -O /dev/null http://127.0.0.1/up
+#    (antes 'wget --spider http://localhost/up' fallaba por IPv6 -> false unhealthy).
+
+services:
+  app:
+    image: cristian123456/bitacora-fnc:v1.5.18
+    container_name: bitacora-app
+    restart: unless-stopped
+    working_dir: /var/www
+    env_file:
+      - .env
+    environment:
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+    volumes:
+      - bitacora-public:/var/www/public
+      - bitacora-storage:/var/www/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - bitacora-net
+      - infra-net
+    healthcheck:
+      test: ["CMD-SHELL", "php-fpm -t || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+
+  webserver:
+    image: nginx:alpine
+    container_name: bitacora-nginx
+    restart: unless-stopped
+    # 8002 en host -> 80 en container (8000 original colisiona con otros servicios)
+    ports:
+      - "8002:80"
+    volumes:
+      - bitacora-public:/var/www/public:ro
+      - bitacora-storage:/var/www/storage:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - bitacora-net
+      - infra-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/up || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 128M
+
+  db:
+    image: mysql:8
+    container_name: bitacora-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: laravel
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-CAMBIA_ESTA_CONTRASENA_EN_PRODUCCION}
+    # Solo localhost, puerto 3310 para no colisionar con 3309 de otros stacks
+    ports:
+      - "127.0.0.1:3310:3306"
+    volumes:
+      - bitacora-mysql:/var/lib/mysql
+    networks:
+      - bitacora-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-CAMBIA_ESTA_CONTRASENA_EN_PRODUCCION}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+
+volumes:
+  bitacora-public:
+    name: bitacora-fnc_bitacora-public
+  bitacora-storage:
+    name: bitacora-fnc_bitacora-storage
+  bitacora-mysql:
+    name: bitacora-fnc_bitacora-mysql
+
+networks:
+  bitacora-net:
+    name: bitacora-fnc_bitacora-net
+  infra-net:
+    external: true
+    name: infra-net
