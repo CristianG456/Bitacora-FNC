@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Acceso Institucional - Sistema de Bitácoras</title>
     
     <link rel="icon" href="{{ asset('imagenes/federacion cafeteros logo.png') }}" type="image/png">

@@ -102,11 +102,28 @@
     }
 
     function updateActiveNavigation(path) {
-        document.querySelectorAll('.sidebar-nav .nav-item').forEach(link => {
-            const linkPath = new URL(link.href, location.origin).pathname;
-            const active = path === linkPath || (linkPath !== '/dashboard' && path.startsWith(linkPath + '/'));
-            link.classList.toggle('active', active);
+        const groups = [
+            '.sidebar-nav .nav-item[href]',
+            '.bottom-nav .bottom-nav-item[href]',
+            '.mobile-drawer .drawer-nav-item[href]'
+        ];
+
+        groups.forEach(selector => {
+            const links = [...document.querySelectorAll(selector)];
+            const matches = links.filter(link => {
+                const linkPath = new URL(link.href, location.origin).pathname;
+                return path === linkPath || (linkPath !== '/dashboard' && path.startsWith(linkPath + '/'));
+            });
+            const bestLength = Math.max(0, ...matches.map(link => new URL(link.href, location.origin).pathname.length));
+
+            links.forEach(link => {
+                const linkPath = new URL(link.href, location.origin).pathname;
+                link.classList.toggle('active', matches.includes(link) && linkPath.length === bestLength);
+            });
         });
+
+        const drawerHasActiveItem = Boolean(document.querySelector('.mobile-drawer .drawer-nav-item.active'));
+        document.querySelector('[data-mobile-more]')?.classList.toggle('active', drawerHasActiveItem);
     }
 
     async function renderResponse(response, requestedPath, pushHistory) {
@@ -197,6 +214,7 @@
         const url = new URL(anchor.href, location.origin);
         if (!isInternalModule(url, anchor)) return;
         event.preventDefault();
+        window.closeMobileDrawer?.();
         loadModule(url.href).catch(error => {
             console.error('Error de navegaci�n interna', error);
             Swal.fire('Error', 'No fue posible cargar esta secci�n.', 'error');

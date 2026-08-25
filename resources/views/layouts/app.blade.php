@@ -35,7 +35,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ filemtime(public_path('css/app.css')) }}">
     
     {{-- SweetAlert2 --}}
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -127,7 +127,7 @@
     {{-- Header --}}
     <header class="top-header flex items-center justify-between">
         <div class="flex items-center gap-3">
-            <button onclick="toggleSidebar()" class="md:hidden text-gray-600 hover:text-gray-900 focus:outline-none">
+            <button onclick="toggleSidebar()" class="btn-hamburger md:hidden text-gray-600 hover:text-gray-900 focus:outline-none">
                 <i data-lucide="menu" style="width:24px;height:24px;"></i>
             </button>
             <span class="header-title hidden sm:block">Sistema de Gestión de Casos Jurídicos</span>
@@ -147,7 +147,7 @@
                 </div>
 
                 <!-- Menú desplegable -->
-                <div id="notif-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
+                <div id="notif-dropdown" class="hidden absolute right-0 mt-2 w-80 max-w-[90vw] md:max-w-sm bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
                     <div class="p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                         <h3 class="font-bold text-sm text-gray-800">Notificaciones</h3>
                         @if($sinLeer > 0)
@@ -169,7 +169,7 @@
                 <div class="user-avatar">
                     {{ strtoupper(substr(auth()->user()?->name ?? 'U', 0, 1)) }}
                 </div>
-                <div>
+                <div class="hidden sm:block">
                     <div class="user-name-label">{{ auth()->user()?->name ?? 'Usuario' }}</div>
                     <div class="user-role-label">{{ auth()->user()?->role?->nombre ?? 'Sin rol' }}</div>
                 </div>
@@ -193,6 +193,69 @@
         @yield('content')
     </main>
 
+    {{-- Navegación inferior móvil recuperada del responsive anterior --}}
+    <nav class="bottom-nav" aria-label="Navegación principal móvil">
+        <a href="{{ route('dashboard') }}" class="bottom-nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+            <i data-lucide="layout-dashboard" aria-hidden="true"></i>
+            <span>Inicio</span>
+        </a>
+        <a href="{{ route('casos.index') }}" class="bottom-nav-item {{ request()->routeIs('casos.*') && !request()->routeIs('casos.crear') ? 'active' : '' }}">
+            <i data-lucide="folder-open" aria-hidden="true"></i>
+            <span>Casos</span>
+        </a>
+
+        @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica']))
+        <a href="{{ route('casos.crear') }}" class="bottom-nav-item {{ request()->routeIs('casos.crear') ? 'active' : '' }}">
+            <i data-lucide="plus-circle" aria-hidden="true"></i>
+            <span>Crear</span>
+        </a>
+        @endif
+
+        <button type="button" class="bottom-nav-item" data-mobile-more aria-controls="mobile-drawer" aria-expanded="false" onclick="toggleMobileDrawer()">
+            <i data-lucide="menu" aria-hidden="true"></i>
+            <span>Más</span>
+        </button>
+    </nav>
+
+    {{-- Menú secundario móvil "Más" --}}
+    <div id="mobile-drawer" class="mobile-drawer" aria-hidden="true">
+        <div class="mobile-drawer-header">
+            <h2 class="mobile-drawer-title">Más Opciones</h2>
+            <button type="button" class="mobile-drawer-close" aria-label="Cerrar menú" onclick="closeMobileDrawer()">
+                <i data-lucide="x" aria-hidden="true"></i>
+            </button>
+        </div>
+        <div class="mobile-drawer-content">
+            @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica']))
+            <span class="nav-section-title">Gestión</span>
+            <a href="{{ route('tipos.index') }}" class="drawer-nav-item {{ request()->routeIs('tipos.*') ? 'active' : '' }}">
+                <i data-lucide="file-text" aria-hidden="true"></i>
+                Tipos de Documento
+            </a>
+            <a href="{{ route('usuarios.index') }}" class="drawer-nav-item {{ request()->routeIs('usuarios.*') ? 'active' : '' }}">
+                <i data-lucide="users" aria-hidden="true"></i>
+                Usuarios
+            </a>
+            @endif
+
+            @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor']))
+            <span class="nav-section-title">Reportes</span>
+            <a href="{{ route('historial.index') }}" class="drawer-nav-item {{ request()->routeIs('historial.*') ? 'active' : '' }}">
+                <i data-lucide="clock" aria-hidden="true"></i>
+                Historial Global
+            </a>
+            @endif
+
+            @if(auth()->user()?->tieneAlgunRol(['Administrador']))
+            <span class="nav-section-title">Sistema</span>
+            <a href="{{ route('respaldos.index') }}" class="drawer-nav-item {{ request()->routeIs('respaldos.*') ? 'active' : '' }}">
+                <i data-lucide="database" aria-hidden="true"></i>
+                Respaldos
+            </a>
+            @endif
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -209,6 +272,30 @@
             overlay.classList.toggle('hidden');
         }
     }
+
+    function setMobileDrawer(open) {
+        const drawer = document.getElementById('mobile-drawer');
+        const trigger = document.querySelector('[data-mobile-more]');
+        if (!drawer) return;
+
+        drawer.classList.toggle('open', open);
+        drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
+        trigger?.setAttribute('aria-expanded', open ? 'true' : 'false');
+        document.body.classList.toggle('mobile-drawer-open', open);
+    }
+
+    function toggleMobileDrawer() {
+        const drawer = document.getElementById('mobile-drawer');
+        setMobileDrawer(!drawer?.classList.contains('open'));
+    }
+
+    function closeMobileDrawer() {
+        setMobileDrawer(false);
+    }
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') closeMobileDrawer();
+    });
 
     function toggleNotificaciones() {
         const dropdown = document.getElementById('notif-dropdown');
