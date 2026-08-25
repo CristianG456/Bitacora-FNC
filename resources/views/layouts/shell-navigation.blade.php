@@ -250,9 +250,19 @@
             Swal.fire('Error', 'No fue posible procesar la solicitud.', 'error');
         });
     };
-    currentModule = sessionStorage.getItem('current_module') || '/dashboard';
+    const initialPath = pathOf(window.location.href);
+    const directModule = initialPath !== '/';
+    currentModule = directModule
+        ? initialPath
+        : (sessionStorage.getItem('current_module') || '/dashboard');
 
-    if (currentModule !== '/dashboard') {
+    history.replaceState({ shellModule: currentModule }, '', '/');
+
+    if (directModule) {
+        sessionStorage.setItem('current_module', currentModule);
+        updateActiveNavigation(new URL(currentModule, location.origin).pathname);
+        if (initialScripts) executeScripts([...initialScripts.content.querySelectorAll('script')]);
+    } else if (currentModule !== '/dashboard') {
         loadModule(currentModule, { pushHistory: false }).catch(() => loadModule('/dashboard', { pushHistory: false }));
     } else if (initialScripts) {
         executeScripts([...initialScripts.content.querySelectorAll('script')]);
