@@ -37,17 +37,18 @@
                         <i data-lucide="mail" style="width:14px;height:14px;"></i> Probar SMTP
                     </button>
                 </h2>
+                <p class="text-xs text-gray-500 mb-4">Opcional: déjalo vacío si solo necesitas respaldo local o local + R2.</p>
                 
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Host SMTP</label>
-                        <input type="text" name="smtp_host" value="{{ old('smtp_host', $config->smtp_host) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
+                        <input type="text" name="smtp_host" value="{{ old('smtp_host', $config->smtp_host) }}" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
                     </div>
                     
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Puerto</label>
-                            <input type="number" name="smtp_port" value="{{ old('smtp_port', $config->smtp_port) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
+                            <input type="number" name="smtp_port" value="{{ old('smtp_port', $config->smtp_port) }}" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Encriptación</label>
@@ -57,7 +58,7 @@
                     
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Usuario SMTP</label>
-                        <input type="text" name="smtp_username" value="{{ old('smtp_username', $config->smtp_username) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
+                        <input type="text" name="smtp_username" value="{{ old('smtp_username', $config->smtp_username) }}" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
                     </div>
                     
                     <div>
@@ -230,16 +231,16 @@
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Email Remitente</label>
-                                    <input type="email" name="sender_email" value="{{ old('sender_email', $config->sender_email) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
+                                    <input type="email" name="sender_email" value="{{ old('sender_email', $config->sender_email) }}" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Nombre Remitente</label>
-                                    <input type="text" name="sender_name" value="{{ old('sender_name', $config->sender_name) }}" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
+                                    <input type="text" name="sender_name" value="{{ old('sender_name', $config->sender_name) }}" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none">
                                 </div>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Correos Destino</label>
-                                <textarea name="recipient_emails" required rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none" placeholder="correo1@ejemplo.com, correo2@ejemplo.com">{{ old('recipient_emails', is_array($config->recipient_emails) ? implode(', ', $config->recipient_emails) : $config->recipient_emails) }}</textarea>
+                                <textarea name="recipient_emails" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 outline-none" placeholder="correo1@ejemplo.com, correo2@ejemplo.com">{{ old('recipient_emails', is_array($config->recipient_emails) ? implode(', ', $config->recipient_emails) : $config->recipient_emails) }}</textarea>
                             </div>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>

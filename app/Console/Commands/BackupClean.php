@@ -2,7 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Models\ConfiguracionRespaldo;
+use App\Services\BackupService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 
 class BackupClean extends Command
 {
@@ -23,24 +26,30 @@ class BackupClean extends Command
     /**
      * Execute the console command.
      */
-    public function handle(\App\Services\BackupService $backupService)
+    public function handle(BackupService $backupService)
     {
         try {
-            $config = \App\Models\ConfiguracionRespaldo::first();
+            $config = ConfiguracionRespaldo::first();
 
-            if (!$config) {
+            if (! $config) {
                 $this->error('No se ha configurado el módulo de respaldos.');
+
                 return Command::FAILURE;
             }
 
             $this->info('Iniciando limpieza de respaldos antiguos...');
-            
+
             $backupService->cleanOldBackups($config);
-            
+
             $this->info('Limpieza finalizada con éxito.');
+
             return Command::SUCCESS;
         } catch (\Exception $e) {
-            $this->error('Ocurrió un error al limpiar los respaldos: ' . $e->getMessage());
+            $this->error('No fue posible completar la retención. Consulta los logs del módulo.');
+            Log::error('El comando backup:clean falló.', [
+                'exception' => $e::class,
+            ]);
+
             return Command::FAILURE;
         }
     }

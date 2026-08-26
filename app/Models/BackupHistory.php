@@ -18,6 +18,15 @@ class BackupHistory extends Model
         'checksum_sha256',
         'sent_to',
         'execution_time',
-        'error_message'
+        'error_message',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'r2_uploaded_at' => 'datetime',
+            'file_size' => 'integer',
+            'execution_time' => 'float',
+        ];
+    }
 }

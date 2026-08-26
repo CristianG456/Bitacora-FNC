@@ -2,26 +2,23 @@
 
 namespace App\Services;
 
+use App\Models\BackupHistory;
 use App\Models\ConfiguracionRespaldo;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use RuntimeException;
+use Throwable;
 
 class BackupService
 {
-    protected BackupEncryptionService $encryptionService;
-    protected BackupMailService $mailService;
-    protected R2BackupStorageService $r2StorageService;
+    public function __construct(
+        protected BackupEncryptionService $encryptionService,
+        protected BackupMailService $mailService,
+        protected R2BackupStorageService $r2StorageService,
+    ) {}
 
-    public function __construct(BackupEncryptionService $encryptionService, BackupMailService $mailService, R2BackupStorageService $r2StorageService)
-    {
-        $this->encryptionService = $encryptionService;
-        $this->mailService = $mailService;
-        $this->r2StorageService = $r2StorageService;
-    }
-
-    /**
-     * Get a custom logger for backups
-     */
     protected function getLogger()
     {
         return Log::build([
@@ -31,204 +28,264 @@ class BackupService
     }
 
     /**
-     * Ejecuta el proceso de respaldo: Dump -> Compress/Encrypt -> Send Mail -> R2 Upload -> Cleanup
+     * Ejecuta un respaldo exclusivamente de base de datos.
      */
-    public function runBackup(ConfiguracionRespaldo $config, string $type = 'automatico')
+    public function runBackup(ConfiguracionRespaldo $config, string $type = 'automatico'): void
     {
         $logger = $this->getLogger();
-        $logger->info("Iniciando proceso de respaldo de base de datos ({$type})...");
-        
+        $lock = Cache::lock('backups:run', config('backup.lock_seconds', 3600));
+
+        if (! $lock->get()) {
+            $logger->warning('Se omitió el respaldo porque ya existe otro proceso en ejecución.');
+            throw new RuntimeException('Ya existe otro respaldo en ejecución.');
+        }
+
+        try {
+            $this->executeBackup($config, $type, $logger);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    protected function executeBackup(ConfiguracionRespaldo $config, string $type, $logger): void
+    {
+        $logger->info('Iniciando respaldo exclusivamente de base de datos.', ['type' => $type]);
         $startTime = microtime(true);
 
         $storagePath = storage_path('app/backups');
-        if (!File::exists($storagePath)) {
-            File::makeDirectory($storagePath, 0755, true);
-        }
+        File::ensureDirectoryExists($storagePath, 0755, true);
 
-        $timestamp = now()->format('Y_m_d_Hi');
-        $sqlFilename = "backup_{$timestamp}.sql";
-        $zipFilename = "backup_{$timestamp}.zip";
-        
-        $sqlPath = $storagePath . '/' . $sqlFilename;
-        $zipPath = $storagePath . '/' . $zipFilename;
+        $identifier = now()->format('Y_m_d_His').'_'.Str::lower(Str::random(8));
+        $sqlFilename = "backup_{$identifier}.sql";
+        $zipFilename = "backup_{$identifier}.zip";
+        $sqlPath = $storagePath.DIRECTORY_SEPARATOR.$sqlFilename;
+        $zipPath = $storagePath.DIRECTORY_SEPARATOR.$zipFilename;
 
-        $history = \App\Models\BackupHistory::create([
+        $history = BackupHistory::create([
             'file_name' => $zipFilename,
             'file_path' => $zipPath,
             'backup_type' => $type,
             'status' => 'fallido',
             'storage_provider' => 'local',
-            'sent_to' => is_array($config->recipient_emails) ? implode(', ', $config->recipient_emails) : $config->recipient_emails,
+            'sent_to' => is_array($config->recipient_emails)
+                ? implode(', ', $config->recipient_emails)
+                : $config->recipient_emails,
         ]);
 
         try {
-            // 1. Generar Dump MySQL
             $this->generateDump($sqlPath);
-            $logger->info("Dump generado exitosamente en: {$sqlPath}");
+            $logger->info('Dump MySQL completado.', ['backup_history_id' => $history->id]);
 
-            // 2. Comprimir y encriptar
-            $this->encryptionService->compressAndEncrypt($sqlPath, $zipPath, $config->backup_password);
-            $logger->info("Archivo comprimido y protegido en: {$zipPath}");
+            $this->encryptionService->compressAndEncrypt(
+                $sqlPath,
+                $zipPath,
+                $config->backup_password,
+            );
 
-            // Obtener el tamaño y checksum del ZIP
-            $fileSize = filesize($zipPath);
+            if (! File::exists($zipPath) || File::size($zipPath) === 0) {
+                throw new RuntimeException('No fue posible verificar el archivo ZIP generado.');
+            }
+
+            $fileSize = File::size($zipPath);
             $checksum = hash_file('sha256', $zipPath);
+            $logger->info('ZIP de respaldo generado.', ['backup_history_id' => $history->id]);
 
-            // 3. Subir a Cloudflare R2 si está habilitado
-            $r2Uploaded = false;
             if ($config->r2_enabled) {
-                $logger->info("Iniciando subida a Cloudflare R2...");
-                $r2Path = ($config->r2_path ? rtrim($config->r2_path, '/') . '/' : '') . $zipFilename;
-                
-                if ($this->r2StorageService->upload($zipPath, $r2Path)) {
-                    $logger->info("Respaldo subido a R2 exitosamente: {$r2Path}");
-                    $r2Uploaded = true;
-                    
-                    $history->update([
-                        'storage_provider' => 'r2',
-                        'storage_path' => $r2Path,
-                        'r2_uploaded_at' => now(),
-                    ]);
-                } else {
-                    $logger->error("Fallo al subir el respaldo a R2.");
+                $r2Path = ($config->r2_path ? rtrim($config->r2_path, '/').'/' : '').$zipFilename;
+
+                if (! $this->r2StorageService->upload($zipPath, $r2Path)) {
+                    throw new RuntimeException('No fue posible completar la copia remota requerida.');
                 }
+
+                $history->update([
+                    'storage_provider' => 'r2',
+                    'storage_path' => $r2Path,
+                    'r2_uploaded_at' => now(),
+                ]);
+                $logger->info('Copia R2 verificada.', ['backup_history_id' => $history->id]);
             }
 
-            // 4. Enviar correo (Opcional, se mantiene funcionalidad original)
-            if (!empty($config->smtp_host) && !empty($config->sender_email)) {
+            if ($this->mailIsConfigured($config)) {
                 $this->mailService->sendBackup($config, $zipPath);
-                $logger->info("Respaldo enviado por correo a: {$history->sent_to}");
+                $logger->info('Envío de correo completado.', [
+                    'backup_history_id' => $history->id,
+                    'recipient_count' => count($config->recipient_emails),
+                ]);
             }
 
-            // 5. Actualizar historial con éxito
             $history->update([
                 'status' => 'exitoso',
                 'file_size' => $fileSize,
                 'checksum_sha256' => $checksum,
-                'execution_time' => microtime(true) - $startTime
+                'execution_time' => microtime(true) - $startTime,
+                'error_message' => null,
             ]);
 
-            // 6. Limpieza de backups antiguos
-            $this->cleanOldBackups($config, $logger);
-
-            // Eliminar archivo temporal local si se subió a R2 y así se desea (opcional)
-            // Por ahora, lo mantenemos si no se requiere estrictamente borrar la copia local,
-            // pero el requerimiento dice: "Eliminar archivo temporal local".
-            if ($r2Uploaded) {
-                if (File::exists($zipPath)) {
-                    File::delete($zipPath);
-                    $logger->info('Archivo ZIP temporal local eliminado porque fue subido a R2.');
-                }
+            try {
+                $this->cleanOldBackups($config, $logger);
+            } catch (Throwable $cleanupError) {
+                $logger->warning('El respaldo terminó, pero la retención requiere revisión.', [
+                    'backup_history_id' => $history->id,
+                    'exception' => $cleanupError::class,
+                ]);
             }
 
-        } catch (\Exception $e) {
-            $logger->error('Error durante el proceso de respaldo: ' . $e->getMessage());
+            $logger->info('Respaldo completado.', ['backup_history_id' => $history->id]);
+        } catch (Throwable $e) {
+            $logger->error('Error durante el proceso de respaldo.', [
+                'backup_history_id' => $history->id,
+                'exception' => $e::class,
+            ]);
+
             $history->update([
                 'status' => 'fallido',
-                'error_message' => $e->getMessage(),
-                'execution_time' => microtime(true) - $startTime
+                'error_message' => 'El respaldo no se completó. Consulta los logs técnicos del módulo.',
+                'execution_time' => microtime(true) - $startTime,
             ]);
+
             throw $e;
         } finally {
-            // Limpieza de archivos temporales (.sql)
-            if (File::exists($sqlPath)) {
-                File::delete($sqlPath);
-            }
-            $logger->info('Limpieza del archivo SQL temporal completada.');
-            $logger->info('Tiempo total de ejecución: ' . (microtime(true) - $startTime) . ' segundos.');
+            File::delete($sqlPath);
+            $logger->info('Limpieza del SQL temporal completada.', [
+                'backup_history_id' => $history->id,
+            ]);
         }
     }
 
-    /**
-     * Limpia backups antiguos basados en la configuración
-     */
-    public function cleanOldBackups(ConfiguracionRespaldo $config, $logger = null)
+    public function cleanOldBackups(ConfiguracionRespaldo $config, $logger = null): void
     {
         $logger = $logger ?? $this->getLogger();
-        
         $maxBackups = $config->max_backups ?? 10;
         $retentionDays = $config->retention_days;
+        $r2RetentionDays = $config->r2_retention_days;
 
-        $historiesQuery = \App\Models\BackupHistory::where('status', 'exitoso')->orderBy('created_at', 'desc');
-        
-        // Mantener solo los últimos $maxBackups
+        $successful = BackupHistory::where('status', 'exitoso')
+            ->orderBy('created_at', 'desc')
+            ->get();
+        $localHistories = $successful->filter(
+            fn (BackupHistory $history) => filled($history->file_path)
+                && File::exists($history->file_path)
+        )->values();
+        $localToRemove = collect();
+
         if ($maxBackups > 0) {
-            $oldHistories = $historiesQuery->skip($maxBackups)->take(100)->get();
-            
-            foreach ($oldHistories as $old) {
-                if (File::exists($old->file_path)) {
-                    File::delete($old->file_path);
-                    $logger->info("Backup antiguo eliminado (límite cantidad): {$old->file_name}");
-                }
-                $old->delete();
-            }
+            $localToRemove = $localToRemove->merge($localHistories->slice($maxBackups));
         }
 
-        // Eliminar por días de retención
         if ($retentionDays > 0) {
             $expiredDate = now()->subDays($retentionDays);
-            $expiredHistories = \App\Models\BackupHistory::where('status', 'exitoso')
-                ->where('created_at', '<', $expiredDate)
+            $localToRemove = $localToRemove->merge(
+                $localHistories->filter(fn (BackupHistory $history) => $history->created_at->lt($expiredDate))
+            );
+        }
+
+        foreach ($localToRemove->unique('id') as $history) {
+            if (! File::delete($history->file_path) || File::exists($history->file_path)) {
+                $logger->warning('No fue posible aplicar la retención local.', [
+                    'backup_history_id' => $history->id,
+                ]);
+
+                continue;
+            }
+
+            $history->file_path = null;
+            filled($history->storage_path) ? $history->save() : $history->delete();
+            $logger->info('Retención local aplicada.', ['backup_history_id' => $history->id]);
+        }
+
+        if ($r2RetentionDays > 0) {
+            $remoteExpired = BackupHistory::where('status', 'exitoso')
+                ->whereNotNull('storage_path')
+                ->whereNotNull('r2_uploaded_at')
+                ->where('r2_uploaded_at', '<', now()->subDays($r2RetentionDays))
                 ->get();
 
-            foreach ($expiredHistories as $old) {
-                if (File::exists($old->file_path)) {
-                    File::delete($old->file_path);
-                    $logger->info("Backup antiguo eliminado (límite días): {$old->file_name}");
+            foreach ($remoteExpired as $history) {
+                if (! $this->r2StorageService->delete($history->storage_path)) {
+                    $logger->warning('No fue posible aplicar la retención R2; se conserva el historial.', [
+                        'backup_history_id' => $history->id,
+                    ]);
+
+                    continue;
                 }
-                $old->delete();
+
+                $history->storage_path = null;
+                $history->r2_uploaded_at = null;
+                $history->storage_provider = 'local';
+
+                if (filled($history->file_path) && File::exists($history->file_path)) {
+                    $history->save();
+                } else {
+                    $history->delete();
+                }
+
+                $logger->info('Retención R2 aplicada.', ['backup_history_id' => $history->id]);
             }
         }
     }
 
-    /**
-     * Genera el dump de la base de datos usando mysqldump.
-     * La contraseña se pasa a través de un archivo de credenciales temporal
-     * (.my.cnf) con permisos 0600 para evitar que aparezca en la lista de
-     * procesos del SO y prevenir inyección de comandos.
-     */
-    protected function generateDump(string $outputPath)
+    protected function generateDump(string $outputPath): void
     {
-        $host     = env('DB_HOST', '127.0.0.1');
-        $port     = env('DB_PORT', '3306');
-        $database = env('DB_DATABASE', 'laravel');
-        $username = env('DB_USERNAME', 'root');
-        $password = env('DB_PASSWORD', '');
+        $connectionName = config('database.default');
+        $connection = config("database.connections.{$connectionName}");
 
-        // Crear archivo de credenciales temporal con permisos restringidos
+        if (($connection['driver'] ?? null) !== 'mysql') {
+            throw new RuntimeException('El respaldo requiere una conexión MySQL.');
+        }
+
+        $host = $connection['host'] ?? '127.0.0.1';
+        $port = $connection['port'] ?? '3306';
+        $database = $connection['database'] ?? '';
+        $username = $connection['username'] ?? 'root';
+        $password = $connection['password'] ?? '';
         $cnfPath = tempnam(sys_get_temp_dir(), 'mysql_cnf_');
-        $cnfContent = "[client]\n"
-            . "user=" . $username . "\n"
-            . (!empty($password) ? "password=" . $password . "\n" : "");
+        $errorPath = tempnam(sys_get_temp_dir(), 'mysql_error_');
 
-        file_put_contents($cnfPath, $cnfContent);
+        if ($cnfPath === false || $errorPath === false) {
+            throw new RuntimeException('No fue posible preparar los archivos temporales del dump.');
+        }
+
+        $cnfContent = "[client]\n"
+            .'user='.$this->mysqlOptionValue((string) $username)."\n"
+            .(filled($password)
+                ? 'password='.$this->mysqlOptionValue((string) $password)."\n"
+                : '');
+
+        File::put($cnfPath, $cnfContent);
         chmod($cnfPath, 0600);
 
         try {
-            // Usar escapeshellarg en todos los valores para prevenir inyección
             $command = sprintf(
-                'mysqldump --defaults-extra-file=%s -h %s -P %s %s > %s 2>&1',
+                'mysqldump --defaults-extra-file=%s --single-transaction --quick --skip-lock-tables -h %s -P %s %s > %s 2> %s',
                 escapeshellarg($cnfPath),
-                escapeshellarg($host),
-                escapeshellarg($port),
-                escapeshellarg($database),
-                escapeshellarg($outputPath)
+                escapeshellarg((string) $host),
+                escapeshellarg((string) $port),
+                escapeshellarg((string) $database),
+                escapeshellarg($outputPath),
+                escapeshellarg($errorPath),
             );
 
-            $output     = null;
-            $resultCode = null;
+            exec($command, $ignoredOutput, $resultCode);
 
-            exec($command, $output, $resultCode);
-
-            if ($resultCode !== 0) {
-                $error = implode("\n", $output);
-                throw new \Exception("mysqldump falló: {$error}");
+            if ($resultCode !== 0 || ! File::exists($outputPath) || File::size($outputPath) === 0) {
+                throw new RuntimeException('mysqldump no pudo completar el respaldo.');
             }
         } finally {
-            // Eliminar siempre el archivo de credenciales temporal
-            if (file_exists($cnfPath)) {
-                unlink($cnfPath);
-            }
+            File::delete([$cnfPath, $errorPath]);
         }
     }
 
+    protected function mysqlOptionValue(string $value): string
+    {
+        return '"'.str_replace(['\\', '"'], ['\\\\', '\\"'], $value).'"';
+    }
+
+    protected function mailIsConfigured(ConfiguracionRespaldo $config): bool
+    {
+        return filled($config->smtp_host)
+            && filled($config->smtp_port)
+            && filled($config->sender_email)
+            && is_array($config->recipient_emails)
+            && $config->recipient_emails !== [];
+    }
+}

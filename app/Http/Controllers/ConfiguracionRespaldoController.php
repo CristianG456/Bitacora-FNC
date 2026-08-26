@@ -3,19 +3,24 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreConfiguracionRespaldoRequest;
-use App\Http\Requests\UpdateConfiguracionRespaldoRequest;
 use App\Models\BackupHistory;
 use App\Models\ConfiguracionRespaldo;
+use App\Services\BackupMailService;
+use App\Services\R2BackupStorageService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Symfony\Component\Console\Command\Command;
 
 class ConfiguracionRespaldoController extends Controller
 {
     public function index(Request $request)
     {
-        $config = ConfiguracionRespaldo::first() ?? new ConfiguracionRespaldo();
-        
+        $config = ConfiguracionRespaldo::first() ?? new ConfiguracionRespaldo;
+
         $query = BackupHistory::query();
 
         if ($request->filled('status')) {
@@ -33,13 +38,13 @@ class ConfiguracionRespaldoController extends Controller
         return view('respaldos.index', compact('config', 'historial', 'resumenRespaldos'));
     }
 
-    public function storeOrUpdate(\App\Http\Requests\StoreConfiguracionRespaldoRequest $request)
+    public function storeOrUpdate(StoreConfiguracionRespaldoRequest $request)
     {
         $validated = $request->validated();
 
-        // Convert recipient_emails from string (comma separated) to array
-        $emails = array_map('trim', explode(',', $validated['recipient_emails']));
-        $validated['recipient_emails'] = $emails;
+        $validated['recipient_emails'] = filled($validated['recipient_emails'] ?? null)
+            ? array_values(array_filter(array_map('trim', explode(',', $validated['recipient_emails']))))
+            : null;
         $validated['is_active'] = $request->has('is_active');
         $validated['r2_enabled'] = $request->has('r2_enabled');
 
@@ -67,89 +72,176 @@ class ConfiguracionRespaldoController extends Controller
     {
         try {
             $config = ConfiguracionRespaldo::first();
-            if (!$config) {
+            if (! $config) {
                 return response()->json(['success' => false, 'message' => 'No hay configuración guardada para probar.']);
             }
 
             // Test sending a simple mail using the saved config
-            $mailService = app(\App\Services\BackupMailService::class);
+            $mailService = app(BackupMailService::class);
             $mailService->testConnection($config);
 
             return response()->json(['success' => true, 'message' => 'Conexión SMTP exitosa. Se ha enviado un correo de prueba.']);
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Error al probar SMTP: ' . $e->getMessage()]);
+            Log::warning('La prueba SMTP de respaldos falló.', [
+                'exception' => $e::class,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No fue posible completar la prueba SMTP. Revisa la configuración y los logs.',
+            ]);
         }
     }
 
     public function respaldoManual()
     {
         try {
-            // Llama al comando Artisan
-            \Illuminate\Support\Facades\Artisan::call('backup:run', ['--manual' => true]);
+            $exitCode = Artisan::call('backup:run', ['--manual' => true]);
+
+            if ($exitCode !== Command::SUCCESS) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El respaldo no se completó. Revisa el historial y los logs del módulo.',
+                ], 500);
+            }
+
             return response()->json(['success' => true, 'message' => 'Respaldo generado y enviado correctamente.']);
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Error al generar respaldo: ' . $e->getMessage()]);
+            Log::error('Falló la solicitud de respaldo manual.', [
+                'exception' => $e::class,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'El respaldo no se completó. Revisa el historial y los logs del módulo.',
+            ], 500);
         }
     }
+
     public function probarR2(Request $request)
     {
         try {
             $config = ConfiguracionRespaldo::first();
-            if (!$config || !$config->r2_enabled) {
+            if (! $config || ! $config->r2_enabled) {
                 return response()->json(['success' => false, 'message' => 'R2 no está configurado o habilitado.']);
             }
 
-            $r2Service = app(\App\Services\R2BackupStorageService::class);
-            // Write a small test file
-            $testContent = 'Conexión exitosa a R2 - ' . now();
-            $testPath = storage_path('app/r2_test.txt');
-            file_put_contents($testPath, $testContent);
-            
-            $r2Service->upload($testPath, 'test_connection.txt');
-            $r2Service->delete('test_connection.txt');
-            unlink($testPath);
+            $r2Service = app(R2BackupStorageService::class);
+            $testKey = 'healthchecks/test_'.Str::uuid().'.txt';
+            File::ensureDirectoryExists(storage_path('app'), 0755, true);
+            $testPath = tempnam(storage_path('app'), 'r2_healthcheck_');
+            $uploaded = false;
+            $deleted = false;
+
+            if ($testPath === false) {
+                throw new \RuntimeException('No se pudo preparar la prueba local.');
+            }
+
+            try {
+                File::put($testPath, 'R2 healthcheck '.Str::uuid());
+
+                $uploaded = $r2Service->upload($testPath, $testKey);
+                if (! $uploaded || ! $r2Service->exists($testKey)) {
+                    throw new \RuntimeException('La carga de prueba no pudo verificarse.');
+                }
+
+                $deleted = $r2Service->delete($testKey);
+                if (! $deleted) {
+                    throw new \RuntimeException('La limpieza remota no pudo verificarse.');
+                }
+            } finally {
+                if ($uploaded && ! $deleted) {
+                    $r2Service->delete($testKey);
+                }
+
+                File::delete($testPath);
+            }
 
             return response()->json(['success' => true, 'message' => 'Conexión a Cloudflare R2 exitosa.']);
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Error al probar R2: ' . $e->getMessage()]);
+            Log::warning('La prueba de Cloudflare R2 falló.', [
+                'exception' => $e::class,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No fue posible validar Cloudflare R2. Revisa credenciales, bucket y conectividad.',
+            ]);
         }
     }
 
-    public function download(\App\Models\BackupHistory $history)
+    public function download(BackupHistory $history)
     {
-        if ($history->storage_provider === 'r2') {
-            $r2Service = app(\App\Services\R2BackupStorageService::class);
-            if (!$r2Service->exists($history->storage_path)) {
+        if ($history->file_path && File::exists($history->file_path)) {
+            return response()->download($history->file_path);
+        }
+
+        if ($history->storage_path) {
+            $r2Service = app(R2BackupStorageService::class);
+            $stream = $r2Service->readStream($history->storage_path);
+
+            if (! is_resource($stream)) {
                 return back()->with('error', 'El archivo de respaldo no se encuentra en Cloudflare R2.');
             }
-            // Retornar archivo desde R2 creando una URL temporal o descargando y sirviendo
-            // Como las URLs temporales pueden fallar dependiendo del provider, mejor lo descargamos temporalmente
-            $tempPath = storage_path('app/temp_' . $history->file_name);
-            if ($r2Service->download($history->storage_path, $tempPath)) {
-                return response()->download($tempPath)->deleteFileAfterSend(true);
-            }
-            return back()->with('error', 'No se pudo descargar el archivo de R2.');
+
+            return response()->streamDownload(function () use ($stream): void {
+                try {
+                    fpassthru($stream);
+                } finally {
+                    fclose($stream);
+                }
+            }, $history->file_name, ['Content-Type' => 'application/zip']);
         }
 
-        // Local provider
-        if (!file_exists($history->file_path)) {
-            return back()->with('error', 'El archivo de respaldo no se encuentra en el servidor local.');
-        }
-
-        return response()->download($history->file_path);
+        return back()->with('error', 'El archivo de respaldo no está disponible localmente ni en R2.');
     }
 
-    public function destroy(\App\Models\BackupHistory $history)
+    public function destroy(BackupHistory $history)
     {
-        if ($history->storage_provider === 'r2') {
-            $r2Service = app(\App\Services\R2BackupStorageService::class);
-            $r2Service->delete($history->storage_path);
-        } else {
-            if (file_exists($history->file_path)) {
-                unlink($history->file_path);
+        $errors = [];
+        $remoteDeleted = false;
+        $localDeleted = false;
+
+        if ($history->storage_path) {
+            $r2Service = app(R2BackupStorageService::class);
+            $remoteDeleted = $r2Service->delete($history->storage_path);
+
+            if (! $remoteDeleted) {
+                $errors[] = 'No fue posible eliminar la copia de Cloudflare R2.';
             }
         }
-        
+
+        if ($history->file_path && File::exists($history->file_path)) {
+            $localDeleted = File::delete($history->file_path) && ! File::exists($history->file_path);
+
+            if (! $localDeleted) {
+                $errors[] = 'No fue posible eliminar la copia local.';
+            }
+        } else {
+            $localDeleted = true;
+        }
+
+        if ($errors !== []) {
+            if ($remoteDeleted) {
+                $history->update([
+                    'storage_provider' => 'local',
+                    'storage_path' => null,
+                    'r2_uploaded_at' => null,
+                ]);
+            }
+
+            if ($localDeleted) {
+                $history->update(['file_path' => null]);
+            }
+
+            Log::warning('Un respaldo no pudo eliminarse completamente.', [
+                'backup_history_id' => $history->id,
+                'failed_operations' => count($errors),
+            ]);
+
+            return back()->with('error', implode(' ', $errors).' El historial se conservó para reintentar.');
+        }
+
         $history->delete();
 
         return back()->with('success', 'Respaldo eliminado correctamente.');
@@ -213,11 +305,13 @@ class ConfiguracionRespaldoController extends Controller
 
         if ($config->backup_frequency === 'semanal') {
             $next = $next->nextOrSame(Carbon::SUNDAY);
+
             return $next->isFuture() ? $next : $next->addWeek();
         }
 
         if ($config->backup_frequency === 'mensual') {
             $next = $next->startOfMonth();
+
             return $next->isFuture() ? $next : $next->addMonthNoOverflow();
         }
 
