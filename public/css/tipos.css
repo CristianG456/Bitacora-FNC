@@ -26,6 +26,55 @@
     background-color: #fcfcfc;
 }
 
+@media (max-width: 768px) {
+    .tabla-tipos thead {
+        display: none;
+    }
+    .tabla-tipos, .tabla-tipos tbody, .tabla-tipos tr, .tabla-tipos td {
+        display: block;
+        width: 100%;
+    }
+    .tabla-tipos tr {
+        margin-bottom: 16px;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 16px;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .tabla-tipos tr:last-child {
+        margin-bottom: 0;
+    }
+    .tabla-tipos td {
+        padding: 8px 0;
+        border-bottom: 1px dashed #f3f4f6;
+        text-align: right;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .tabla-tipos td:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+        justify-content: flex-end;
+    }
+    .tabla-tipos td:first-child {
+        padding-top: 0;
+        justify-content: flex-start;
+    }
+    .tabla-tipos td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: #6b7280;
+        font-size: 12px;
+        text-transform: uppercase;
+        margin-right: 16px;
+    }
+    .tabla-tipos td:first-child::before {
+        display: none;
+    }
+}
+
 .badge-estado {
     display: inline-flex;
     align-items: center;
