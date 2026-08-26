@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Services\ProgressiveLoginThrottle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -29,7 +30,7 @@ class LoginController extends Controller
         return view('auth.login');
     }
 
-    public function login(Request $request)
+    public function login(Request $request, ProgressiveLoginThrottle $loginThrottle)
     {
         // Si viene en modo recuperación
         if ($request->has('recuperar')) {
@@ -101,8 +102,18 @@ class LoginController extends Controller
             'email' => 'required|email',
             'password' => 'required',
         ]);
+        $credentials['email'] = mb_strtolower(trim($credentials['email']));
+
+        $secondsRemaining = $loginThrottle->secondsRemaining($credentials['email']);
+        if ($secondsRemaining > 0) {
+            return back()->withErrors([
+                'email' => $this->lockoutMessage($secondsRemaining),
+            ])->onlyInput('email');
+        }
+
         if (Auth::attempt([...$credentials, 'activo' => true])) {
 
+            $loginThrottle->clear($credentials['email']);
             $request->session()->regenerate();
 
             if (Auth::user()->force_password_change) {
@@ -127,9 +138,13 @@ class LoginController extends Controller
             ]);
         }
 
+        $lockMinutes = $loginThrottle->recordFailure($credentials['email']);
+
         return back()->withErrors([
-            'email' => 'Credenciales incorrectas'
-        ]);
+            'email' => $lockMinutes === null
+                ? 'Credenciales incorrectas'
+                : "Demasiados intentos fallidos. Inténtalo nuevamente en {$lockMinutes} " . ($lockMinutes === 1 ? 'minuto.' : 'minutos.'),
+        ])->onlyInput('email');
     }
 
     // Logout
@@ -141,5 +156,12 @@ class LoginController extends Controller
         $request->session()->regenerateToken();
 
         return redirect()->route('login');
+    }
+
+    private function lockoutMessage(int $seconds): string
+    {
+        $minutes = max(1, (int) ceil($seconds / 60));
+
+        return "Este correo está bloqueado temporalmente. Inténtalo nuevamente en {$minutes} " . ($minutes === 1 ? 'minuto.' : 'minutos.');
     }
 }
