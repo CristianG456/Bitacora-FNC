@@ -1,15 +1,20 @@
 services:
+
   db:
     image: mysql:8
     container_name: juridica_db
     restart: unless-stopped
+
     environment:
-      MYSQL_DATABASE: ${DB_DATABASE:-laravel}
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-CAMBIAR_ESTE_VALOR}
+      MYSQL_DATABASE: "${DB_DATABASE:-laravel}"
+      MYSQL_ROOT_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD es obligatorio}"
+
     volumes:
       - /opt/juridica/mysql:/var/lib/mysql
+
     networks:
       - juridica_net
+
     healthcheck:
       test: [ "CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_ROOT_PASSWORD}\" mysqladmin ping -h 127.0.0.1 -u root --silent" ]
       interval: 10s
@@ -22,13 +27,13 @@ services:
     container_name: juridica_app
     restart: unless-stopped
     working_dir: /var/www
+
     environment:
       APP_NAME: "Sistema Jurídico FNC"
       APP_ENV: production
-      APP_KEY: ${APP_KEY:-CAMBIAR_ESTA_APP_KEY}
+      APP_KEY: "${APP_KEY:?APP_KEY es obligatorio}"
       APP_DEBUG: "false"
-
-      APP_URL: "http://192.168.1.218:8010"
+      APP_URL: "${APP_URL:?APP_URL es obligatorio}"
 
       APP_LOCALE: es
       APP_FALLBACK_LOCALE: es
@@ -41,9 +46,9 @@ services:
       DB_CONNECTION: mysql
       DB_HOST: db
       DB_PORT: "3306"
-      DB_DATABASE: ${DB_DATABASE:-laravel}
+      DB_DATABASE: "${DB_DATABASE:-laravel}"
       DB_USERNAME: root
-      DB_PASSWORD: ${DB_PASSWORD:-CAMBIAR_ESTE_VALOR}
+      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD es obligatorio}"
 
       SESSION_DRIVER: file
       SESSION_LIFETIME: "120"
@@ -51,7 +56,7 @@ services:
       SESSION_ENCRYPT: "true"
       SESSION_PATH: /
       SESSION_DOMAIN: ""
-      SESSION_SECURE_COOKIE: "false"
+      SESSION_SECURE_COOKIE: "${SESSION_SECURE_COOKIE:-true}"
       SESSION_HTTP_ONLY: "true"
       SESSION_SAME_SITE: lax
 
@@ -61,18 +66,18 @@ services:
       BROADCAST_CONNECTION: log
 
       MAIL_MAILER: log
-      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-juridica@example.invalid}
+      MAIL_FROM_ADDRESS: "${MAIL_FROM_ADDRESS:-juridica@example.invalid}"
       MAIL_FROM_NAME: "Sistema Jurídico"
 
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-CAMBIAR_ESTE_CORREO}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-CAMBIAR_ESTE_VALOR}
+      ADMIN_EMAIL: "${ADMIN_EMAIL:?ADMIN_EMAIL es obligatorio}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:?ADMIN_PASSWORD es obligatorio}"
 
-      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
-      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
-      R2_REGION: ${R2_REGION:-auto}
-      R2_BUCKET: ${R2_BUCKET:-}
-      R2_ENDPOINT: ${R2_ENDPOINT:-}
-      R2_PUBLIC_URL: ${R2_PUBLIC_URL:-}
+      R2_ACCESS_KEY_ID: "${R2_ACCESS_KEY_ID:-}"
+      R2_SECRET_ACCESS_KEY: "${R2_SECRET_ACCESS_KEY:-}"
+      R2_REGION: "${R2_REGION:-auto}"
+      R2_BUCKET: "${R2_BUCKET:-}"
+      R2_ENDPOINT: "${R2_ENDPOINT:-}"
+      R2_PUBLIC_URL: "${R2_PUBLIC_URL:-}"
 
     depends_on:
       db:
@@ -103,13 +108,13 @@ services:
     environment:
       APP_NAME: "Sistema Jurídico FNC"
       APP_ENV: production
-      APP_KEY: ${APP_KEY:-CAMBIAR_ESTA_APP_KEY}
+      APP_KEY: "${APP_KEY:?APP_KEY es obligatorio}"
       APP_DEBUG: "false"
-
-      APP_URL: "http://192.168.1.218:8010"
+      APP_URL: "${APP_URL:?APP_URL es obligatorio}"
 
       APP_LOCALE: es
       APP_FALLBACK_LOCALE: es
+      APP_FAKER_LOCALE: es_ES
 
       LOG_CHANNEL: stack
       LOG_STACK: single
@@ -118,9 +123,9 @@ services:
       DB_CONNECTION: mysql
       DB_HOST: db
       DB_PORT: "3306"
-      DB_DATABASE: ${DB_DATABASE:-laravel}
+      DB_DATABASE: "${DB_DATABASE:-laravel}"
       DB_USERNAME: root
-      DB_PASSWORD: ${DB_PASSWORD:-CAMBIAR_ESTE_VALOR}
+      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD es obligatorio}"
 
       SESSION_DRIVER: file
       SESSION_LIFETIME: "120"
@@ -128,7 +133,7 @@ services:
       SESSION_ENCRYPT: "true"
       SESSION_PATH: /
       SESSION_DOMAIN: ""
-      SESSION_SECURE_COOKIE: "false"
+      SESSION_SECURE_COOKIE: "${SESSION_SECURE_COOKIE:-true}"
       SESSION_HTTP_ONLY: "true"
       SESSION_SAME_SITE: lax
 
@@ -138,18 +143,18 @@ services:
       BROADCAST_CONNECTION: log
 
       MAIL_MAILER: log
-      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-juridica@example.invalid}
+      MAIL_FROM_ADDRESS: "${MAIL_FROM_ADDRESS:-juridica@example.invalid}"
       MAIL_FROM_NAME: "Sistema Jurídico"
 
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-CAMBIAR_ESTE_CORREO}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-CAMBIAR_ESTE_VALOR}
+      ADMIN_EMAIL: "${ADMIN_EMAIL:?ADMIN_EMAIL es obligatorio}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:?ADMIN_PASSWORD es obligatorio}"
 
-      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
-      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
-      R2_REGION: ${R2_REGION:-auto}
-      R2_BUCKET: ${R2_BUCKET:-}
-      R2_ENDPOINT: ${R2_ENDPOINT:-}
-      R2_PUBLIC_URL: ${R2_PUBLIC_URL:-}
+      R2_ACCESS_KEY_ID: "${R2_ACCESS_KEY_ID:-}"
+      R2_SECRET_ACCESS_KEY: "${R2_SECRET_ACCESS_KEY:-}"
+      R2_REGION: "${R2_REGION:-auto}"
+      R2_BUCKET: "${R2_BUCKET:-}"
+      R2_ENDPOINT: "${R2_ENDPOINT:-}"
+      R2_PUBLIC_URL: "${R2_PUBLIC_URL:-}"
 
     depends_on:
       db:
@@ -181,12 +186,12 @@ services:
 
         map $$http_x_forwarded_proto $$laravel_forwarded_proto {
             default $$http_x_forwarded_proto;
-            "" http;
+            "" https;
         }
 
         map $$http_x_forwarded_port $$laravel_forwarded_port {
             default $$http_x_forwarded_port;
-            "" 8010;
+            "" 443;
         }
 
         server {
@@ -205,11 +210,9 @@ services:
             add_header Referrer-Policy "strict-origin-when-cross-origin" always;
             add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
 
-
             location / {
                 try_files $$uri $$uri/ /index.php?$$query_string;
             }
-
 
             location ^~ /storage/ {
                 alias /var/www/storage/app/public/;
@@ -217,13 +220,11 @@ services:
                 expires 7d;
             }
 
-
             location ^~ /build/assets/ {
                 access_log off;
                 expires 1y;
                 add_header Cache-Control "public, max-age=31536000, immutable";
             }
-
 
             location ~* ^/(?:css|js)/.*\.(?:css|js)$$ {
                 access_log off;
@@ -231,13 +232,11 @@ services:
                 add_header Cache-Control "public, max-age=3600";
             }
 
-
             location ~* \.(?:png|jpg|jpeg|gif|ico|svg|webp|woff2?)$$ {
                 access_log off;
                 expires 7d;
                 add_header Cache-Control "public, max-age=604800";
             }
-
 
             location ~ \.php$$ {
                 try_files $$uri =404;
@@ -257,9 +256,11 @@ services:
                 fastcgi_param HTTP_X_FORWARDED_PROTO $$laravel_forwarded_proto;
                 fastcgi_param HTTP_X_FORWARDED_PORT $$laravel_forwarded_port;
 
+                fastcgi_param HTTPS on;
+                fastcgi_param SERVER_PORT 443;
+
                 fastcgi_read_timeout 300;
             }
-
 
             location ~ /\.(?!well-known).* {
                 deny all;
@@ -274,14 +275,15 @@ services:
       app:
         condition: service_healthy
 
-    ports:
-      - "${WEB_PORT:-8010}:80"
+    expose:
+      - "80"
 
     volumes:
       - /opt/juridica/storage:/var/www/storage:ro
 
     networks:
       - juridica_net
+      - proxy_net
 
     healthcheck:
       test: [ "CMD-SHELL", "curl --fail --silent http://127.0.0.1/up > /dev/null || exit 1" ]
@@ -291,6 +293,11 @@ services:
       start_period: 90s
 
 networks:
+
   juridica_net:
     name: juridica_net
     driver: bridge
+
+  proxy_net:
+    external: true
+    name: "${PROXY_NETWORK:-infra-net}"
