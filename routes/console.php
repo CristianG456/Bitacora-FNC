@@ -21,5 +21,8 @@ try {
         }
     }
 } catch (Exception $e) {
-    Log::error('Error al cargar la configuración de respaldos en el scheduler: '.$e->getMessage());
+    Log::error('No fue posible registrar el scheduler de respaldos.', [
+        'operation' => 'backup_schedule_registration',
+        'exception' => $e::class,
+    ]);
 }

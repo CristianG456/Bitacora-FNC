@@ -6,23 +6,41 @@ use App\Contracts\BackupStorageInterface;
 use App\Models\ConfiguracionRespaldo;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 class R2BackupStorageService implements BackupStorageInterface
 {
-    protected function configureDisk(ConfiguracionRespaldo $config): void
+    protected ?string $resolvedDiskSignature = null;
+
+    protected function disk(ConfiguracionRespaldo $config): Filesystem
     {
         if ($config->r2_bucket) {
             Config::set('filesystems.disks.r2.bucket', $config->r2_bucket);
         }
+
+        $signature = hash('sha256', json_encode([
+            config('filesystems.disks.r2.key'),
+            config('filesystems.disks.r2.secret'),
+            config('filesystems.disks.r2.bucket'),
+            config('filesystems.disks.r2.endpoint'),
+            config('filesystems.disks.r2.region'),
+            config('filesystems.disks.r2.use_path_style_endpoint'),
+        ], JSON_THROW_ON_ERROR));
+
+        if ($this->resolvedDiskSignature !== null && $this->resolvedDiskSignature !== $signature) {
+            Storage::forgetDisk('r2');
+        }
+
+        $this->resolvedDiskSignature = $signature;
+
+        return $this->resolveDisk();
     }
 
-    protected function disk(ConfiguracionRespaldo $config): Filesystem
+    protected function resolveDisk(): Filesystem
     {
-        $this->configureDisk($config);
-
         return Storage::disk('r2');
     }
 
@@ -34,6 +52,9 @@ class R2BackupStorageService implements BackupStorageInterface
         }
 
         $stream = null;
+        $disk = null;
+        $putAttempted = false;
+        $verified = false;
 
         try {
             $stream = fopen($localFilePath, 'rb');
@@ -42,11 +63,20 @@ class R2BackupStorageService implements BackupStorageInterface
             }
 
             $disk = $this->disk($config);
+            if ($disk->exists($destinationPath)) {
+                $this->logAmbiguousUpload('destination_already_exists', $destinationPath);
+
+                return false;
+            }
+
+            $putAttempted = true;
             if ($disk->put($destinationPath, $stream) !== true) {
                 return false;
             }
 
-            return $disk->exists($destinationPath);
+            $verified = $disk->exists($destinationPath);
+
+            return $verified;
         } catch (Throwable $e) {
             $this->logFailure('upload', $e);
 
@@ -55,6 +85,36 @@ class R2BackupStorageService implements BackupStorageInterface
             if (is_resource($stream)) {
                 fclose($stream);
             }
+
+            if ($putAttempted && ! $verified && $disk instanceof Filesystem) {
+                $this->compensateAmbiguousUpload($disk, $destinationPath);
+            }
+        }
+    }
+
+    protected function compensateAmbiguousUpload(Filesystem $disk, string $destinationPath): bool
+    {
+        try {
+            $deleteResult = $disk->delete($destinationPath);
+            $absent = ! $disk->exists($destinationPath);
+
+            if (! $absent) {
+                $this->logAmbiguousUpload('compensating_delete_unconfirmed', $destinationPath);
+            } elseif ($deleteResult !== true) {
+                Log::notice('La limpieza compensatoria R2 confirmó que la clave está ausente.', [
+                    'key_hash' => hash('sha256', $destinationPath),
+                ]);
+            }
+
+            return $absent;
+        } catch (Throwable $e) {
+            Log::error('No se pudo confirmar la limpieza compensatoria R2.', [
+                'operation' => 'compensating_delete',
+                'key_hash' => hash('sha256', $destinationPath),
+                'exception' => $e::class,
+            ]);
+
+            return false;
         }
     }
 
@@ -66,6 +126,7 @@ class R2BackupStorageService implements BackupStorageInterface
         }
 
         $output = null;
+        $completed = false;
 
         try {
             $output = fopen($localDestinationPath, 'wb');
@@ -73,7 +134,9 @@ class R2BackupStorageService implements BackupStorageInterface
                 return false;
             }
 
-            return stream_copy_to_stream($input, $output) !== false;
+            $completed = stream_copy_to_stream($input, $output) !== false;
+
+            return $completed;
         } catch (Throwable $e) {
             $this->logFailure('download', $e);
 
@@ -82,6 +145,9 @@ class R2BackupStorageService implements BackupStorageInterface
             fclose($input);
             if (is_resource($output)) {
                 fclose($output);
+            }
+            if (! $completed) {
+                File::delete($localDestinationPath);
             }
         }
     }
@@ -168,6 +234,14 @@ class R2BackupStorageService implements BackupStorageInterface
         Log::warning('Operación de almacenamiento R2 fallida.', [
             'operation' => $operation,
             'exception' => $e::class,
+        ]);
+    }
+
+    protected function logAmbiguousUpload(string $reason, string $destinationPath): void
+    {
+        Log::warning('La subida R2 no pudo confirmarse como exitosa.', [
+            'reason' => $reason,
+            'key_hash' => hash('sha256', $destinationPath),
         ]);
     }
 }

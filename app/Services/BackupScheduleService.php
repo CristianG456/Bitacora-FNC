@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ConfiguracionRespaldo;
 use Carbon\Carbon;
+use Cron\CronExpression;
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Support\Facades\Schedule;
 
@@ -34,5 +35,15 @@ class BackupScheduleService
             'mensual' => "{$minute} {$hour} 1 * *",
             default => throw new \InvalidArgumentException('Frecuencia de respaldo no soportada.'),
         };
+    }
+
+    public function nextRun(string $frequency, string $time, ?Carbon $from = null): Carbon
+    {
+        $timezone = config('backup.timezone', 'America/Bogota');
+        $reference = ($from ?? Carbon::now($timezone))->copy()->setTimezone($timezone);
+        $next = (new CronExpression($this->cronExpression($frequency, $time)))
+            ->getNextRunDate($reference->toDateTime(), 0, false, $timezone);
+
+        return Carbon::instance($next)->setTimezone($timezone);
     }
 }

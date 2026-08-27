@@ -190,14 +190,17 @@
                         </div>
                     </div>
 
-                    <div class="rounded-lg border {{ $resumenRespaldos['latest_error'] ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50' }} p-4">
-                        <h3 class="text-sm font-bold {{ $resumenRespaldos['latest_error'] ? 'text-red-800' : 'text-green-800' }} flex items-center gap-2">
-                            <i data-lucide="{{ $resumenRespaldos['latest_error'] ? 'circle-alert' : 'circle-check' }}" style="width:16px;height:16px;"></i>
-                            Último error
+                    <div class="rounded-lg border {{ $resumenRespaldos['latest_error'] ? 'border-red-200 bg-red-50' : ($resumenRespaldos['latest_warning'] ? 'border-amber-200 bg-amber-50' : 'border-green-200 bg-green-50') }} p-4">
+                        <h3 class="text-sm font-bold {{ $resumenRespaldos['latest_error'] ? 'text-red-800' : ($resumenRespaldos['latest_warning'] ? 'text-amber-800' : 'text-green-800') }} flex items-center gap-2">
+                            <i data-lucide="{{ ($resumenRespaldos['latest_error'] || $resumenRespaldos['latest_warning']) ? 'circle-alert' : 'circle-check' }}" style="width:16px;height:16px;"></i>
+                            Estado reciente
                         </h3>
                         @if($resumenRespaldos['latest_error'])
                             <p class="mt-2 text-xs font-semibold text-red-800">{{ $resumenRespaldos['latest_error']->created_at->format('d/m/Y - h:i a') }}</p>
                             <p class="mt-1 text-sm text-red-700">El último intento de respaldo no se completó correctamente.</p>
+                        @elseif($resumenRespaldos['latest_warning'])
+                            <p class="mt-2 text-xs font-semibold text-amber-800">{{ $resumenRespaldos['latest_warning']->created_at->format('d/m/Y - h:i a') }}</p>
+                            <p class="mt-1 text-sm text-amber-700">El respaldo es válido, pero el correo SMTP no pudo enviarse.</p>
                         @else
                             <p class="mt-2 text-sm text-green-700">Sin errores recientes</p>
                         @endif
@@ -214,7 +217,7 @@
                                     <div><span class="text-gray-500 sm:hidden">Fecha: </span><span class="font-semibold text-gray-800">{{ $registro->created_at->format('d/m/Y - H:i') }}</span></div>
                                     <div><span class="text-gray-500 sm:hidden">Destino: </span><span class="text-gray-700">{{ $registro->storage_provider === 'r2' ? 'Cloudflare R2' : 'Local' }}</span></div>
                                     <div class="text-gray-700"><span class="text-gray-500 sm:hidden">Tamaño: </span>{{ $registro->file_size > 0 ? number_format($registro->file_size / 1048576, 2) . ' MB' : 'No disponible' }}</div>
-                                    <div><span class="inline-flex px-2 py-1 rounded-full font-bold {{ $registro->status === 'exitoso' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">{{ $registro->status === 'exitoso' ? 'Completado' : 'Fallido' }}</span></div>
+                                    <div><span class="inline-flex px-2 py-1 rounded-full font-bold {{ $registro->status === 'fallido' ? 'bg-red-100 text-red-800' : ($registro->error_message ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800') }}">{{ $registro->status === 'fallido' ? 'Fallido' : ($registro->error_message ? 'Completado con advertencia' : 'Completado') }}</span></div>
                                 </div>
                             @empty
                                 <p class="p-4 text-sm text-gray-500 text-center">No existe historial estructurado disponible.</p>
@@ -356,8 +359,8 @@
                     </td>
                     <td class="px-4 py-3">
                         @if($hist->status === 'exitoso')
-                            <span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold flex items-center w-max gap-1">
-                                <i data-lucide="check-circle" style="width:12px;height:12px;"></i> Exitoso
+                            <span class="px-2 py-1 {{ $hist->error_message ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800' }} rounded-full text-xs font-bold flex items-center w-max gap-1">
+                                <i data-lucide="{{ $hist->error_message ? 'triangle-alert' : 'check-circle' }}" style="width:12px;height:12px;"></i> {{ $hist->error_message ? 'Exitoso con advertencia' : 'Exitoso' }}
                             </span>
                         @else
                             <span class="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold flex items-center w-max gap-1 cursor-pointer" title="El respaldo no se completó correctamente">
@@ -367,7 +370,7 @@
                     </td>
                     <td class="px-4 py-3 text-right whitespace-nowrap">
                         <div class="flex items-center justify-end gap-2">
-                            @if($hist->status === 'exitoso' && file_exists($hist->file_path))
+                            @if($hist->status === 'exitoso' && (($hist->file_path && file_exists($hist->file_path)) || $hist->storage_path))
                                 <a href="{{ route('respaldos.download', $hist->id) }}" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition" title="Descargar">
                                     <i data-lucide="download" style="width:16px;height:16px;"></i>
                                 </a>

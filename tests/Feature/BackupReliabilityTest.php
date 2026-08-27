@@ -65,6 +65,7 @@ class BackupReliabilityTest extends TestCase
         $this->assertFileExists($histories[0]->file_path);
         $this->assertFileExists($histories[1]->file_path);
         $this->assertSame('r2', $histories[0]->storage_provider);
+        $this->assertSame(hash_file('sha256', $histories[0]->file_path), $histories[0]->checksum_sha256);
     }
 
     public function test_backup_lock_prevents_concurrent_execution(): void
@@ -82,6 +83,35 @@ class BackupReliabilityTest extends TestCase
         }
     }
 
+    public function test_backup_lock_is_released_after_success_and_exception(): void
+    {
+        $config = $this->configuration();
+        $this->serviceWithFakeDump()->runBackup($config, 'manual');
+        $lock = Cache::lock('backups:run', 60);
+        $this->assertTrue($lock->get());
+        $lock->release();
+
+        $encryption = Mockery::mock(BackupEncryptionService::class);
+        $encryption->shouldReceive('compressAndEncrypt')->once()->andThrow(new RuntimeException('zip failed'));
+        $mail = Mockery::mock(BackupMailService::class);
+        $mail->shouldNotReceive('isEnabled');
+        $service = Mockery::mock(BackupService::class, [
+            $encryption,
+            $mail,
+            Mockery::mock(R2BackupStorageService::class),
+        ])->makePartial()->shouldAllowMockingProtectedMethods();
+        $service->shouldReceive('generateDump')
+            ->andReturnUsing(fn (string $path) => File::put($path, 'SQL DUMP'));
+
+        try {
+            $service->runBackup($config, 'manual');
+        } catch (RuntimeException) {
+            $afterFailure = Cache::lock('backups:run', 60);
+            $this->assertTrue($afterFailure->get());
+            $afterFailure->release();
+        }
+    }
+
     public function test_r2_failure_marks_history_failed_and_preserves_local_zip(): void
     {
         $config = $this->configuration(['r2_enabled' => true]);
@@ -95,6 +125,7 @@ class BackupReliabilityTest extends TestCase
             $history = BackupHistory::firstOrFail();
             $this->assertSame('fallido', $history->status);
             $this->assertFileExists($history->file_path);
+            $this->assertStringContainsString('réplica R2', $history->error_message);
             $this->assertStringNotContainsString('secret', (string) $history->error_message);
         }
     }
@@ -116,6 +147,62 @@ class BackupReliabilityTest extends TestCase
         $this->assertDatabaseHas('backup_histories', ['id' => $recent->id]);
         $this->assertFileDoesNotExist($old->file_path);
         $this->assertFileExists($recent->file_path);
+    }
+
+    public function test_local_retention_manages_verified_copy_from_failed_r2_backup(): void
+    {
+        $config = $this->configuration(['retention_days' => 7, 'max_backups' => 0]);
+        $history = $this->historyWithLocalFile('failed-r2.zip', now()->subDays(10));
+        $history->update(['status' => 'fallido']);
+        $path = $history->file_path;
+        (new BackupService(
+            Mockery::mock(BackupEncryptionService::class),
+            Mockery::mock(BackupMailService::class),
+            Mockery::mock(R2BackupStorageService::class),
+        ))->cleanOldBackups($config);
+
+        $this->assertFileDoesNotExist($path);
+        $this->assertDatabaseMissing('backup_histories', ['id' => $history->id]);
+    }
+
+    public function test_smtp_failure_becomes_warning_without_invalidating_verified_backup(): void
+    {
+        $config = $this->configuration([
+            'smtp_host' => 'smtp.example.test',
+            'smtp_port' => 587,
+            'smtp_username' => 'mailer@example.test',
+            'sender_email' => 'sender@example.test',
+            'sender_name' => 'Backups',
+            'recipient_emails' => ['recipient@example.test'],
+        ]);
+        $encryption = Mockery::mock(BackupEncryptionService::class);
+        $encryption->shouldReceive('compressAndEncrypt')->once()
+            ->andReturnUsing(function (string $source, string $zip): bool {
+                File::put($zip, 'zip:'.File::get($source));
+
+                return true;
+            });
+        $mail = Mockery::mock(BackupMailService::class);
+        $mail->shouldReceive('isEnabled')->once()->andReturnTrue();
+        $mail->shouldReceive('sendBackup')->once()->andThrow(new RuntimeException('smtp failed'));
+        $service = Mockery::mock(BackupService::class, [
+            $encryption,
+            $mail,
+            Mockery::mock(R2BackupStorageService::class),
+        ])->makePartial()->shouldAllowMockingProtectedMethods();
+        $service->shouldReceive('generateDump')
+            ->andReturnUsing(fn (string $path) => File::put($path, 'SQL DUMP'));
+
+        $service->runBackup($config, 'manual');
+        $history = BackupHistory::firstOrFail();
+        $this->assertSame('exitoso', $history->status);
+        $this->assertNotNull($history->error_message);
+        $this->assertFileExists($history->file_path);
+        $this->actingAs($this->administrator())
+            ->get('/respaldos')
+            ->assertOk()
+            ->assertSee('El respaldo es válido, pero el correo SMTP no pudo enviarse.')
+            ->assertSee('Exitoso con advertencia');
     }
 
     public function test_r2_retention_deletes_remote_before_clearing_history(): void
@@ -198,7 +285,9 @@ class BackupReliabilityTest extends TestCase
         $local = $this->testStoragePath.'/upload.zip';
         File::put($local, 'backup-content');
         $disk = Mockery::mock(Filesystem::class);
+        $disk->shouldReceive('exists')->twice()->andReturnFalse();
         $disk->shouldReceive('put')->once()->andReturnFalse();
+        $disk->shouldReceive('delete')->once()->andReturnFalse();
         $service = Mockery::mock(R2BackupStorageService::class)
             ->makePartial()
             ->shouldAllowMockingProtectedMethods();
@@ -216,6 +305,96 @@ class BackupReliabilityTest extends TestCase
         $this->assertFalse($deleteService->delete('backups/upload.zip'));
     }
 
+    public function test_r2_ambiguous_upload_runs_compensating_delete(): void
+    {
+        $this->configuration(['r2_enabled' => true]);
+        $local = $this->testStoragePath.'/upload.zip';
+        File::put($local, 'backup-content');
+        $disk = Mockery::mock(Filesystem::class);
+        $disk->shouldReceive('exists')->times(3)->andReturn(false, false, false);
+        $disk->shouldReceive('put')->once()->andReturnTrue();
+        $disk->shouldReceive('delete')->once()->with('backups/upload.zip')->andReturnTrue();
+        $service = Mockery::mock(R2BackupStorageService::class)
+            ->makePartial()->shouldAllowMockingProtectedMethods();
+        $service->shouldReceive('disk')->andReturn($disk);
+
+        $this->assertFalse($service->upload($local, 'backups/upload.zip'));
+    }
+
+    public function test_r2_exists_exception_after_put_still_runs_compensation(): void
+    {
+        $this->configuration(['r2_enabled' => true]);
+        $local = $this->testStoragePath.'/upload.zip';
+        File::put($local, 'backup-content');
+        $calls = 0;
+        $disk = Mockery::mock(Filesystem::class);
+        $disk->shouldReceive('exists')->times(3)->andReturnUsing(function () use (&$calls): bool {
+            $calls++;
+            if ($calls === 2) {
+                throw new RuntimeException('ambiguous exists');
+            }
+
+            return false;
+        });
+        $disk->shouldReceive('put')->once()->andReturnTrue();
+        $disk->shouldReceive('delete')->once()->andReturnTrue();
+        $service = Mockery::mock(R2BackupStorageService::class)
+            ->makePartial()->shouldAllowMockingProtectedMethods();
+        $service->shouldReceive('disk')->andReturn($disk);
+
+        $this->assertFalse($service->upload($local, 'backups/upload.zip'));
+    }
+
+    public function test_r2_failed_compensation_never_turns_upload_into_success(): void
+    {
+        $this->configuration(['r2_enabled' => true]);
+        $local = $this->testStoragePath.'/upload.zip';
+        File::put($local, 'backup-content');
+        $disk = Mockery::mock(Filesystem::class);
+        $disk->shouldReceive('exists')->times(3)->andReturn(false, false, true);
+        $disk->shouldReceive('put')->once()->andReturnTrue();
+        $disk->shouldReceive('delete')->once()->andReturnFalse();
+        $service = Mockery::mock(R2BackupStorageService::class)
+            ->makePartial()->shouldAllowMockingProtectedMethods();
+        $service->shouldReceive('disk')->andReturn($disk);
+
+        $this->assertFalse($service->upload($local, 'backups/upload.zip'));
+    }
+
+    public function test_r2_put_exception_is_compensated_and_reported_as_failure(): void
+    {
+        $this->configuration(['r2_enabled' => true]);
+        $local = $this->testStoragePath.'/upload.zip';
+        File::put($local, 'backup-content');
+        $disk = Mockery::mock(Filesystem::class);
+        $disk->shouldReceive('exists')->twice()->andReturnFalse();
+        $disk->shouldReceive('put')->once()->andThrow(new RuntimeException('put failed'));
+        $disk->shouldReceive('delete')->once()->andReturnTrue();
+        $service = Mockery::mock(R2BackupStorageService::class)
+            ->makePartial()->shouldAllowMockingProtectedMethods();
+        $service->shouldReceive('disk')->andReturn($disk);
+
+        $this->assertFalse($service->upload($local, 'backups/upload.zip'));
+    }
+
+    public function test_r2_disk_is_refreshed_when_bucket_changes(): void
+    {
+        $config = $this->configuration(['r2_enabled' => true, 'r2_bucket' => 'bucket-a']);
+        $local = $this->testStoragePath.'/upload.zip';
+        File::put($local, 'backup-content');
+        $disk = Mockery::mock(Filesystem::class);
+        $disk->shouldReceive('exists')->times(4)->andReturn(false, true, false, true);
+        $disk->shouldReceive('put')->twice()->andReturnTrue();
+        $service = Mockery::mock(R2BackupStorageService::class)
+            ->makePartial()->shouldAllowMockingProtectedMethods();
+        $service->shouldReceive('resolveDisk')->twice()->andReturn($disk);
+        Storage::shouldReceive('forgetDisk')->once()->with('r2');
+
+        $this->assertTrue($service->upload($local, 'backups/a.zip'));
+        $config->update(['r2_bucket' => 'bucket-b']);
+        $this->assertTrue($service->upload($local, 'backups/b.zip'));
+    }
+
     public function test_r2_healthcheck_uses_unique_key_and_cleans_up(): void
     {
         $this->configuration(['r2_enabled' => true]);
@@ -227,6 +406,35 @@ class BackupReliabilityTest extends TestCase
         $response->assertOk()->assertJson(['success' => true]);
         Storage::disk('r2')->assertExists('test_connection.txt');
         $this->assertSame([], Storage::disk('r2')->allFiles('healthchecks'));
+    }
+
+    public function test_r2_healthcheck_always_attempts_cleanup_after_ambiguous_upload(): void
+    {
+        $this->configuration(['r2_enabled' => true]);
+        $r2 = Mockery::mock(R2BackupStorageService::class);
+        $r2->shouldReceive('upload')->once()->andReturnFalse();
+        $r2->shouldReceive('delete')->once()->with(Mockery::pattern('/^healthchecks\/test_.+\.txt$/'))->andReturnTrue();
+        $this->app->instance(R2BackupStorageService::class, $r2);
+
+        $this->actingAs($this->administrator())
+            ->postJson('/respaldos/probar-r2')
+            ->assertOk()
+            ->assertJson(['success' => false]);
+    }
+
+    public function test_r2_healthcheck_does_not_report_success_when_delete_fails(): void
+    {
+        $this->configuration(['r2_enabled' => true]);
+        $r2 = Mockery::mock(R2BackupStorageService::class);
+        $r2->shouldReceive('upload')->once()->andReturnTrue();
+        $r2->shouldReceive('exists')->once()->andReturnTrue();
+        $r2->shouldReceive('delete')->twice()->andReturnFalse();
+        $this->app->instance(R2BackupStorageService::class, $r2);
+
+        $this->actingAs($this->administrator())
+            ->postJson('/respaldos/probar-r2')
+            ->assertOk()
+            ->assertJson(['success' => false]);
     }
 
     public function test_smtp_is_optional_for_local_only_configuration(): void
@@ -245,6 +453,75 @@ class BackupReliabilityTest extends TestCase
             'smtp_host' => null,
             'r2_enabled' => false,
         ]);
+    }
+
+    public function test_invalid_recipient_is_rejected_and_multiple_valid_recipients_are_accepted(): void
+    {
+        $base = [
+            'smtp_host' => 'smtp.example.test',
+            'smtp_port' => 587,
+            'smtp_username' => 'mailer@example.test',
+            'sender_email' => 'sender@example.test',
+            'sender_name' => 'Backups',
+            'backup_frequency' => 'diario',
+            'backup_time' => '09:30',
+        ];
+
+        $this->actingAs($this->administrator())
+            ->post('/respaldos', $base + ['recipient_emails' => 'valid@example.test, invalid'])
+            ->assertSessionHasErrors('recipient_emails');
+
+        $this->actingAs($this->administrator())
+            ->post('/respaldos', $base + ['recipient_emails' => 'one@example.test, two@example.test'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(
+            ['one@example.test', 'two@example.test'],
+            ConfiguracionRespaldo::firstOrFail()->recipient_emails
+        );
+    }
+
+    public function test_mysql_credential_temporaries_are_cleaned_when_permission_setup_fails(): void
+    {
+        $originalConnection = config('database.default');
+        config([
+            'database.default' => 'backup_test',
+            'database.connections.backup_test' => [
+                'driver' => 'mysql',
+                'host' => 'db',
+                'port' => 3306,
+                'database' => 'legal',
+                'username' => 'root',
+                'password' => 'not-logged',
+            ],
+        ]);
+        $beforeCnf = glob(sys_get_temp_dir().DIRECTORY_SEPARATOR.'mysql_cnf_*') ?: [];
+        $beforeError = glob(sys_get_temp_dir().DIRECTORY_SEPARATOR.'mysql_error_*') ?: [];
+        $service = new class(Mockery::mock(BackupEncryptionService::class), Mockery::mock(BackupMailService::class), Mockery::mock(R2BackupStorageService::class)) extends BackupService
+        {
+            public function invokeGenerateDump(string $path): void
+            {
+                $this->generateDump($path);
+            }
+
+            protected function secureCredentialFile(string $path): bool
+            {
+                return false;
+            }
+        };
+
+        $failedSafely = false;
+        try {
+            $service->invokeGenerateDump($this->testStoragePath.'/dump.sql');
+            $this->fail('El fallo de permisos debía abortar.');
+        } catch (RuntimeException) {
+            $failedSafely = true;
+        } finally {
+            config(['database.default' => $originalConnection]);
+        }
+
+        $this->assertTrue($failedSafely);
+        $this->assertSame($beforeCnf, glob(sys_get_temp_dir().DIRECTORY_SEPARATOR.'mysql_cnf_*') ?: []);
+        $this->assertSame($beforeError, glob(sys_get_temp_dir().DIRECTORY_SEPARATOR.'mysql_error_*') ?: []);
     }
 
     public function test_non_administrator_cannot_access_backups(): void
@@ -292,6 +569,7 @@ class BackupReliabilityTest extends TestCase
                 return true;
             });
         $mail = Mockery::mock(BackupMailService::class);
+        $mail->shouldReceive('isEnabled')->andReturnFalse();
         $mail->shouldNotReceive('sendBackup');
         $service = Mockery::mock(BackupService::class, [
             $encryption,
@@ -332,6 +610,8 @@ class BackupReliabilityTest extends TestCase
             'status' => 'exitoso',
             'backup_type' => 'automatico',
             'storage_provider' => 'local',
+            'file_size' => 3,
+            'checksum_sha256' => hash('sha256', 'zip'),
         ]);
         $history->timestamps = false;
         $history->created_at = $createdAt;

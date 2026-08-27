@@ -6,6 +6,7 @@ use App\Http\Requests\StoreConfiguracionRespaldoRequest;
 use App\Models\BackupHistory;
 use App\Models\ConfiguracionRespaldo;
 use App\Services\BackupMailService;
+use App\Services\BackupScheduleService;
 use App\Services\R2BackupStorageService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -17,6 +18,8 @@ use Symfony\Component\Console\Command\Command;
 
 class ConfiguracionRespaldoController extends Controller
 {
+    public function __construct(protected BackupScheduleService $backupScheduleService) {}
+
     public function index(Request $request)
     {
         $config = ConfiguracionRespaldo::first() ?? new ConfiguracionRespaldo;
@@ -105,7 +108,7 @@ class ConfiguracionRespaldoController extends Controller
                 ], 500);
             }
 
-            return response()->json(['success' => true, 'message' => 'Respaldo generado y enviado correctamente.']);
+            return response()->json(['success' => true, 'message' => 'Respaldo generado correctamente.']);
         } catch (\Exception $e) {
             Log::error('Falló la solicitud de respaldo manual.', [
                 'exception' => $e::class,
@@ -130,9 +133,6 @@ class ConfiguracionRespaldoController extends Controller
             $testKey = 'healthchecks/test_'.Str::uuid().'.txt';
             File::ensureDirectoryExists(storage_path('app'), 0755, true);
             $testPath = tempnam(storage_path('app'), 'r2_healthcheck_');
-            $uploaded = false;
-            $deleted = false;
-
             if ($testPath === false) {
                 throw new \RuntimeException('No se pudo preparar la prueba local.');
             }
@@ -140,18 +140,20 @@ class ConfiguracionRespaldoController extends Controller
             try {
                 File::put($testPath, 'R2 healthcheck '.Str::uuid());
 
-                $uploaded = $r2Service->upload($testPath, $testKey);
-                if (! $uploaded || ! $r2Service->exists($testKey)) {
+                if (! $r2Service->upload($testPath, $testKey) || ! $r2Service->exists($testKey)) {
                     throw new \RuntimeException('La carga de prueba no pudo verificarse.');
                 }
 
-                $deleted = $r2Service->delete($testKey);
-                if (! $deleted) {
+                if (! $r2Service->delete($testKey)) {
                     throw new \RuntimeException('La limpieza remota no pudo verificarse.');
                 }
             } finally {
-                if ($uploaded && ! $deleted) {
-                    $r2Service->delete($testKey);
+                // La clave es única de este healthcheck. Se intenta limpiar siempre,
+                // incluso cuando upload() devolvió false por verificación ambigua.
+                if (! $r2Service->delete($testKey)) {
+                    Log::warning('No se pudo confirmar la limpieza final del healthcheck R2.', [
+                        'key_hash' => hash('sha256', $testKey),
+                    ]);
                 }
 
                 File::delete($testPath);
@@ -254,6 +256,10 @@ class ConfiguracionRespaldoController extends Controller
             ->where('created_at', '>=', now()->subDays(30))
             ->latest()
             ->first();
+        $latestWarning = BackupHistory::where('status', 'exitoso')
+            ->whereNotNull('error_message')
+            ->latest()
+            ->first();
         $recent = BackupHistory::latest()->limit(5)->get();
 
         $localCopies = null;
@@ -271,6 +277,8 @@ class ConfiguracionRespaldoController extends Controller
         $status = 'advertencia';
         if ($latest?->status === 'fallido') {
             $status = 'error';
+        } elseif ($latest?->status === 'exitoso' && filled($latest->error_message)) {
+            $status = 'advertencia';
         } elseif ($config->exists && $config->is_active && $latest?->status === 'exitoso') {
             $status = 'operativo';
         }
@@ -279,6 +287,7 @@ class ConfiguracionRespaldoController extends Controller
             'status' => $status,
             'latest' => $latest,
             'latest_error' => $latestError,
+            'latest_warning' => $latestWarning,
             'recent' => $recent,
             'next_run' => $this->nextScheduledRun($config),
             'local_copies' => $localCopies,
@@ -296,25 +305,9 @@ class ConfiguracionRespaldoController extends Controller
             return null;
         }
 
-        $time = Carbon::parse($config->backup_time);
-        $next = now()->setTime($time->hour, $time->minute, 0);
-
-        if ($config->backup_frequency === 'diario') {
-            return $next->isFuture() ? $next : $next->addDay();
-        }
-
-        if ($config->backup_frequency === 'semanal') {
-            $next = $next->nextOrSame(Carbon::SUNDAY);
-
-            return $next->isFuture() ? $next : $next->addWeek();
-        }
-
-        if ($config->backup_frequency === 'mensual') {
-            $next = $next->startOfMonth();
-
-            return $next->isFuture() ? $next : $next->addMonthNoOverflow();
-        }
-
-        return null;
+        return $this->backupScheduleService->nextRun(
+            $config->backup_frequency,
+            $config->backup_time,
+        );
     }
 }

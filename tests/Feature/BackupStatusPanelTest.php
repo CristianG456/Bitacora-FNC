@@ -6,12 +6,19 @@ use App\Models\BackupHistory;
 use App\Models\ConfiguracionRespaldo;
 use App\Models\Rol;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class BackupStatusPanelTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
+    }
 
     public function test_empty_backup_state_is_reported_without_invented_data(): void
     {
@@ -47,6 +54,7 @@ class BackupStatusPanelTest extends TestCase
             ->assertOk()
             ->assertJson(['success' => false]);
     }
+
     public function test_real_history_is_rendered_without_exposing_backup_password(): void
     {
         ConfiguracionRespaldo::create([
@@ -82,6 +90,22 @@ class BackupStatusPanelTest extends TestCase
         $response->assertSee('30 días');
         $response->assertDontSee('clave-zip-super-secreta');
         $response->assertDontSee('/ruta/no-publica');
+        $response->assertSee(route('respaldos.download', 1), false);
+    }
+
+    public function test_monthly_next_run_preserves_time_in_backup_timezone(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 8, 26, 15, 0, 0, 'UTC'));
+        ConfiguracionRespaldo::create([
+            'backup_frequency' => 'mensual',
+            'backup_time' => '23:05',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($this->administrator())
+            ->get('/respaldos')
+            ->assertOk()
+            ->assertSee('01/09/2026 - 11:05 pm');
     }
 
     public function test_recent_error_is_sanitized(): void

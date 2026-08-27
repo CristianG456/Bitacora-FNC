@@ -71,10 +71,13 @@ class BackupService
                 ? implode(', ', $config->recipient_emails)
                 : $config->recipient_emails,
         ]);
+        $zipValidated = false;
+        $stage = 'dump';
 
         try {
             $this->generateDump($sqlPath);
             $logger->info('Dump MySQL completado.', ['backup_history_id' => $history->id]);
+            $stage = 'zip';
 
             $this->encryptionService->compressAndEncrypt(
                 $sqlPath,
@@ -88,10 +91,20 @@ class BackupService
 
             $fileSize = File::size($zipPath);
             $checksum = hash_file('sha256', $zipPath);
-            $logger->info('ZIP de respaldo generado.', ['backup_history_id' => $history->id]);
+            if (! is_string($checksum) || strlen($checksum) !== 64) {
+                throw new RuntimeException('No fue posible calcular la integridad del archivo ZIP.');
+            }
+
+            $zipValidated = true;
+            $history->update([
+                'file_size' => $fileSize,
+                'checksum_sha256' => $checksum,
+            ]);
+            $logger->info('ZIP de respaldo generado y validado.', ['backup_history_id' => $history->id]);
 
             if ($config->r2_enabled) {
-                $r2Path = ($config->r2_path ? rtrim($config->r2_path, '/').'/' : '').$zipFilename;
+                $stage = 'r2';
+                $r2Path = $this->buildR2Path((string) $config->r2_path, $zipFilename);
 
                 if (! $this->r2StorageService->upload($zipPath, $r2Path)) {
                     throw new RuntimeException('No fue posible completar la copia remota requerida.');
@@ -105,12 +118,22 @@ class BackupService
                 $logger->info('Copia R2 verificada.', ['backup_history_id' => $history->id]);
             }
 
-            if ($this->mailIsConfigured($config)) {
-                $this->mailService->sendBackup($config, $zipPath);
-                $logger->info('Envío de correo completado.', [
-                    'backup_history_id' => $history->id,
-                    'recipient_count' => count($config->recipient_emails),
-                ]);
+            $stage = 'email';
+            $emailWarning = null;
+            if ($this->mailService->isEnabled($config)) {
+                try {
+                    $recipientCount = $this->mailService->sendBackup($config, $zipPath);
+                    $logger->info('Envío de correo completado.', [
+                        'backup_history_id' => $history->id,
+                        'recipient_count' => $recipientCount,
+                    ]);
+                } catch (Throwable $emailError) {
+                    $emailWarning = 'El respaldo se creó correctamente, pero el correo no pudo enviarse.';
+                    $logger->warning('El respaldo se conservó, pero falló el envío SMTP.', [
+                        'backup_history_id' => $history->id,
+                        'exception' => $emailError::class,
+                    ]);
+                }
             }
 
             $history->update([
@@ -118,7 +141,7 @@ class BackupService
                 'file_size' => $fileSize,
                 'checksum_sha256' => $checksum,
                 'execution_time' => microtime(true) - $startTime,
-                'error_message' => null,
+                'error_message' => $emailWarning,
             ]);
 
             try {
@@ -134,14 +157,26 @@ class BackupService
         } catch (Throwable $e) {
             $logger->error('Error durante el proceso de respaldo.', [
                 'backup_history_id' => $history->id,
+                'stage' => $stage,
                 'exception' => $e::class,
             ]);
 
-            $history->update([
+            $failureData = [
                 'status' => 'fallido',
-                'error_message' => 'El respaldo no se completó. Consulta los logs técnicos del módulo.',
+                'error_message' => match ($stage) {
+                    'r2' => 'La copia local es válida, pero no fue posible completar la réplica R2.',
+                    'zip' => 'El dump se generó, pero no fue posible producir un ZIP válido.',
+                    default => 'No fue posible generar el dump de la base de datos.',
+                },
                 'execution_time' => microtime(true) - $startTime,
-            ]);
+            ];
+
+            if (! $zipValidated) {
+                File::delete($zipPath);
+                $failureData['file_path'] = null;
+            }
+
+            $history->update($failureData);
 
             throw $e;
         } finally {
@@ -159,13 +194,14 @@ class BackupService
         $retentionDays = $config->retention_days;
         $r2RetentionDays = $config->r2_retention_days;
 
-        $successful = BackupHistory::where('status', 'exitoso')
-            ->orderBy('created_at', 'desc')
-            ->get();
-        $localHistories = $successful->filter(
-            fn (BackupHistory $history) => filled($history->file_path)
-                && File::exists($history->file_path)
-        )->values();
+        $localHistories = BackupHistory::orderBy('created_at', 'desc')
+            ->get()
+            ->filter(
+                fn (BackupHistory $history) => filled($history->file_path)
+                    && $history->file_size > 0
+                    && filled($history->checksum_sha256)
+                    && File::exists($history->file_path)
+            )->values();
         $localToRemove = collect();
 
         if ($maxBackups > 0) {
@@ -194,8 +230,7 @@ class BackupService
         }
 
         if ($r2RetentionDays > 0) {
-            $remoteExpired = BackupHistory::where('status', 'exitoso')
-                ->whereNotNull('storage_path')
+            $remoteExpired = BackupHistory::whereNotNull('storage_path')
                 ->whereNotNull('r2_uploaded_at')
                 ->where('r2_uploaded_at', '<', now()->subDays($r2RetentionDays))
                 ->get();
@@ -238,41 +273,70 @@ class BackupService
         $database = $connection['database'] ?? '';
         $username = $connection['username'] ?? 'root';
         $password = $connection['password'] ?? '';
-        $cnfPath = tempnam(sys_get_temp_dir(), 'mysql_cnf_');
-        $errorPath = tempnam(sys_get_temp_dir(), 'mysql_error_');
-
-        if ($cnfPath === false || $errorPath === false) {
-            throw new RuntimeException('No fue posible preparar los archivos temporales del dump.');
-        }
-
-        $cnfContent = "[client]\n"
-            .'user='.$this->mysqlOptionValue((string) $username)."\n"
-            .(filled($password)
-                ? 'password='.$this->mysqlOptionValue((string) $password)."\n"
-                : '');
-
-        File::put($cnfPath, $cnfContent);
-        chmod($cnfPath, 0600);
+        $cnfPath = null;
+        $errorPath = null;
 
         try {
-            $command = sprintf(
-                'mysqldump --defaults-extra-file=%s --single-transaction --quick --skip-lock-tables -h %s -P %s %s > %s 2> %s',
-                escapeshellarg($cnfPath),
-                escapeshellarg((string) $host),
-                escapeshellarg((string) $port),
-                escapeshellarg((string) $database),
-                escapeshellarg($outputPath),
-                escapeshellarg($errorPath),
-            );
+            $cnfPath = tempnam(sys_get_temp_dir(), 'mysql_cnf_');
+            $errorPath = tempnam(sys_get_temp_dir(), 'mysql_error_');
 
-            exec($command, $ignoredOutput, $resultCode);
+            if ($cnfPath === false || $errorPath === false) {
+                throw new RuntimeException('No fue posible preparar los archivos temporales del dump.');
+            }
 
-            if ($resultCode !== 0 || ! File::exists($outputPath) || File::size($outputPath) === 0) {
-                throw new RuntimeException('mysqldump no pudo completar el respaldo.');
+            $cnfContent = "[client]\n"
+                .'user='.$this->mysqlOptionValue((string) $username)."\n"
+                .(filled($password)
+                    ? 'password='.$this->mysqlOptionValue((string) $password)."\n"
+                    : '');
+
+            if (File::put($cnfPath, $cnfContent) !== strlen($cnfContent)) {
+                throw new RuntimeException('No fue posible escribir el archivo temporal de MySQL.');
+            }
+            if (! $this->secureCredentialFile($cnfPath)) {
+                throw new RuntimeException('No fue posible proteger el archivo temporal de MySQL.');
+            }
+
+            try {
+                $command = sprintf(
+                    'mysqldump --defaults-extra-file=%s --single-transaction --quick --skip-lock-tables -h %s -P %s %s > %s 2> %s',
+                    escapeshellarg($cnfPath),
+                    escapeshellarg((string) $host),
+                    escapeshellarg((string) $port),
+                    escapeshellarg((string) $database),
+                    escapeshellarg($outputPath),
+                    escapeshellarg($errorPath),
+                );
+
+                exec($command, $ignoredOutput, $resultCode);
+
+                if ($resultCode !== 0 || ! File::exists($outputPath) || File::size($outputPath) === 0) {
+                    throw new RuntimeException('mysqldump no pudo completar el respaldo.');
+                }
+            } finally {
+                File::delete([$cnfPath, $errorPath]);
             }
         } finally {
-            File::delete([$cnfPath, $errorPath]);
+            File::delete(array_values(array_filter(
+                [$cnfPath, $errorPath],
+                fn ($path) => is_string($path) && $path !== ''
+            )));
         }
+    }
+
+    protected function secureCredentialFile(string $path): bool
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            return true;
+        }
+
+        if (! chmod($path, 0600)) {
+            return false;
+        }
+
+        clearstatcache(true, $path);
+
+        return (fileperms($path) & 0777) === 0600;
     }
 
     protected function mysqlOptionValue(string $value): string
@@ -280,12 +344,15 @@ class BackupService
         return '"'.str_replace(['\\', '"'], ['\\\\', '\\"'], $value).'"';
     }
 
-    protected function mailIsConfigured(ConfiguracionRespaldo $config): bool
+    protected function buildR2Path(string $prefix, string $fileName): string
     {
-        return filled($config->smtp_host)
-            && filled($config->smtp_port)
-            && filled($config->sender_email)
-            && is_array($config->recipient_emails)
-            && $config->recipient_emails !== [];
+        $normalized = trim(str_replace('\\', '/', $prefix), '/');
+        if ($normalized !== '' && collect(explode('/', $normalized))->contains(
+            fn (string $segment) => $segment === '' || $segment === '.' || $segment === '..'
+        )) {
+            throw new RuntimeException('La ruta configurada para R2 no es válida.');
+        }
+
+        return ($normalized !== '' ? $normalized.'/' : '').$fileName;
     }
 }
