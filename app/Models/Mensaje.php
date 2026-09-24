@@ -13,6 +13,7 @@ class Mensaje extends Model
     protected $fillable = [
         'caso_id',
         'user_id',
+        'destinatario_id',
         'mensaje',
         'created_at',
     ];
@@ -29,5 +30,10 @@ class Mensaje extends Model
     public function autor()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function destinatario()
+    {
+        return $this->belongsTo(User::class, 'destinatario_id');
     }
 }

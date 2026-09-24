@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Models\Observacion;
+use Illuminate\Validation\ValidationException;
 
 class TareaController extends Controller
 {
@@ -27,6 +28,21 @@ class TareaController extends Controller
 
             $data = $request->validated();
 
+            $asignadoActivo = $caso->usuarios()
+                ->where('users.id', $data['user_id'])
+                ->wherePivot('activo', true)
+                ->exists();
+
+            abort_unless($asignadoActivo, 403, 'La tarea solo puede asignarse a un usuario activo del caso.');
+
+            $usuarioAsignado = User::findOrFail($data['user_id']);
+            $tipoAccion = $data['tipo_accion'] ?? 'normal';
+            if ($tipoAccion === 'firma' && !$usuarioAsignado->esAbogado()) {
+                throw ValidationException::withMessages([
+                    'user_id' => 'Las tareas de firma solo pueden asignarse a usuarios con rol Abogado.',
+                ]);
+            }
+
             // Determinar orden: último + 1
             $ultimoOrden = $caso->tareas()->max('orden') ?? 0;
             $data['orden'] = $ultimoOrden + 1;
@@ -34,6 +50,7 @@ class TareaController extends Controller
             $tarea = $caso->tareas()->create([
                 'user_id'     => $data['user_id'],
                 'descripcion' => $data['descripcion'],
+                'tipo_accion' => $tipoAccion,
                 'estado'      => 'Pendiente',
                 'orden'       => $data['orden'],
                 'fecha_inicio' => $data['fecha_inicio'] ?? null,
@@ -43,16 +60,20 @@ class TareaController extends Controller
             // Actualizar el estado del usuario a 'En proceso' ya que se le añadió una nueva tarea
             $caso->usuarios()->updateExistingPivot($data['user_id'], ['estado' => 'En proceso']);
 
+            if ($caso->estado === 'Completado') {
+                $caso->update(['estado' => 'En proceso']);
+            }
+
             // Notificar al usuario asignado
             Notificacion::enviar(
                 $tarea->user_id,
                 'Nueva tarea asignada',
                 "Se te asignó la tarea: \"{$tarea->descripcion}\" en el caso {$caso->radicado}.",
-                'tarea'
+                'tarea',
+                $caso->id
             );
 
             // Obtener el nombre del usuario asignado
-            $usuarioAsignado = User::find($tarea->user_id);
             $nombreAsignado = $usuarioAsignado ? $usuarioAsignado->name : 'desconocido';
 
             // Bitácora
@@ -63,7 +84,7 @@ class TareaController extends Controller
                 casoId:          $caso->id,
                 entidadId:       $tarea->id,
                 usuarioAfectado: $tarea->user_id,
-                metadata:        ['descripcion' => $tarea->descripcion, 'estado' => $tarea->estado]
+                metadata:        ['descripcion' => $tarea->descripcion, 'estado' => $tarea->estado, 'tipo_accion' => $tarea->tipo_accion]
             );
         });
 
@@ -99,6 +120,7 @@ class TareaController extends Controller
             );
 
             $tarea->delete();
+            $caso->sincronizarEstadoPorTareas();
         });
 
         return redirect()->route('casos.show', $caso->id)
@@ -111,6 +133,15 @@ class TareaController extends Controller
 
     public function completar(Request $request, Caso $caso, Tarea $tarea)
     {
+        if (Auth::user()->esConsultor()) {
+            abort(403, 'El rol Consultor es de solo lectura.');
+        }
+
+        if ($tarea->tipo_accion === 'firma') {
+            abort_unless(Auth::user()->esAbogado(), 403, 'Solo un Abogado asignado puede registrar la firma.');
+            $request->merge(['observacion' => 'Firma realizada']);
+        }
+
         $request->validate([
             'observacion' => 'required|string|min:5|max:2000'
         ], [
@@ -120,61 +151,72 @@ class TareaController extends Controller
 
         $this->verificarTareaDeCaso($caso, $tarea);
 
-        $user    = Auth::user();
-        $esAdmin = $user->tieneAlgunRol(['Administrador', 'Juridica']);
-
-        // Solo el usuario asignado puede completar la tarea (o admins/jurídica)
-        if ($tarea->user_id !== Auth::id() && !$esAdmin) {
+        // El rol administrativo no reemplaza la responsabilidad personal.
+        // Cada persona solo puede completar las tareas que tiene asignadas.
+        if ($tarea->user_id !== Auth::id()) {
             abort(403, 'Solo el usuario asignado puede completar esta tarea.');
         }
 
         // Verificar que el usuario siga activo en el caso (no haya sido removido)
-        if (!$esAdmin) {
-            $activoEnCaso = $caso->usuarios()
-                ->where('users.id', Auth::id())
-                ->wherePivot('activo', true)
-                ->exists();
+        $activoEnCaso = $caso->usuarios()
+            ->where('users.id', Auth::id())
+            ->wherePivot('activo', true)
+            ->exists();
 
-            if (!$activoEnCaso) {
-                abort(403, 'Ya no tienes acceso activo a este caso.');
-            }
+        if (!$activoEnCaso) {
+            abort(403, 'Ya no tienes acceso activo a este caso.');
         }
 
 
-        DB::transaction(function () use ($request, $caso, $tarea) {
-            $tarea->update([
+        $completadaAhora = DB::transaction(function () use ($request, $caso, $tarea) {
+            $tareaBloqueada = Tarea::query()->lockForUpdate()->findOrFail($tarea->id);
+
+            if ($tareaBloqueada->estado === 'Completada') {
+                return false;
+            }
+
+            $tareaBloqueada->update([
                 'estado' => 'Completada',
                 'fecha_fin' => now(),
             ]);
 
             Observacion::create([
-                'tarea_id' => $tarea->id,
+                'tarea_id' => $tareaBloqueada->id,
                 'user_id' => Auth::id(),
                 'contenido' => $request->input('observacion'),
             ]);
 
             // Actualizar estado del usuario en el caso
-            $totalUsuario = $caso->tareas()->where('user_id', $tarea->user_id)->count();
-            $completadasUsuario = $caso->tareas()->where('user_id', $tarea->user_id)->where('estado', 'Completada')->count();
+            $totalUsuario = $caso->tareas()->where('user_id', $tareaBloqueada->user_id)->count();
+            $completadasUsuario = $caso->tareas()->where('user_id', $tareaBloqueada->user_id)->where('estado', 'Completada')->count();
 
             if ($totalUsuario > 0) {
                 if ($completadasUsuario === $totalUsuario) {
-                    $caso->usuarios()->updateExistingPivot($tarea->user_id, ['estado' => 'Finalizado']);
+                    $caso->usuarios()->updateExistingPivot($tareaBloqueada->user_id, ['estado' => 'Finalizado']);
                 } else {
-                    $caso->usuarios()->updateExistingPivot($tarea->user_id, ['estado' => 'En proceso']);
+                    $caso->usuarios()->updateExistingPivot($tareaBloqueada->user_id, ['estado' => 'En proceso']);
                 }
             }
+
+            $caso->sincronizarEstadoPorTareas();
 
             Bitacora::registrar(
                 modulo:          'Tareas',
                 accion:          'Completar',
-                descripcion:     "El usuario ".Auth::user()->name." completó la tarea '{$tarea->descripcion}'.",
+                descripcion:     "El usuario ".Auth::user()->name." completó la tarea '{$tareaBloqueada->descripcion}'.",
                 casoId:          $caso->id,
-                entidadId:       $tarea->id,
+                entidadId:       $tareaBloqueada->id,
                 usuarioAfectado: Auth::id(),
-                metadata:        ['observacion' => $request->input('observacion')]
+                metadata:        ['observacion' => $request->input('observacion'), 'tipo_accion' => $tareaBloqueada->tipo_accion]
             );
+
+            return true;
         });
+
+        if (!$completadaAhora) {
+            return redirect()->route('casos.show', $caso->id)
+                ->with('error', 'La tarea ya estaba completada.');
+        }
 
         return redirect()->route('casos.show', $caso->id)
             ->with('success', 'Tarea completada exitosamente.');

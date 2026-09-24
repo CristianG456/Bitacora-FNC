@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             TipoProcesoSeeder::class,
             SubtipoProcesoSeeder::class,
             RolesSeeder::class,
+            TipoDocumentoSolicitanteSeeder::class,
         ]);
     }
 }

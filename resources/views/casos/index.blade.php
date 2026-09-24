@@ -27,7 +27,7 @@
         <div class="relative flex-1">
             <i data-lucide="search" class="absolute left-3 top-2.5 text-gray-400 w-[18px] h-[18px]"></i>
             <input type="text" name="search" value="{{ request('search') }}" 
-                   placeholder="Buscar por radicado, descripción, nombre o documento..."
+                   placeholder="Buscar por radicado, descripción o solicitante..."
                    class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm focus:bg-white focus:border-red-500 outline-none transition">
         </div>
         
@@ -71,7 +71,7 @@
             <div class="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-gray-500 font-medium">
                 <span>Tipo: <span class="text-gray-700">{{ $caso->tipo?->nombre ?? 'N/A' }}</span></span>
                 <span class="text-gray-300 hidden sm:inline">•</span>
-                <span>Creado: <span class="text-gray-700">{{ $caso->created_at->format('d/m/Y') }}</span></span>
+                <span>Creado: <span class="text-gray-700">{{ \App\Support\LocalDate::inBogota($caso->created_at)?->format('d/m/Y') }}</span></span>
                 <span class="text-gray-300 hidden sm:inline">•</span>
                 <span><span class="text-gray-700">{{ $caso->usuarios->count() }}</span> usuario(s)</span>
             </div>

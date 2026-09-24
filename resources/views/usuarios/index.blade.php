@@ -105,6 +105,7 @@
                                 'Usuario Principal'=> 'bg-blue-500 text-white',
                                 'Usuario'          => 'bg-gray-500 text-white',
                                 'Consultor'        => 'bg-orange-500 text-white',
+                                'Abogado'          => 'bg-emerald-600 text-white',
                                 default            => 'bg-gray-200 text-gray-700',
                             };
                         @endphp

@@ -1,0 +1,27 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('dias_no_habiles', function (Blueprint $table) {
+            $table->id();
+            $table->date('fecha')->unique();
+            $table->string('nombre');
+            $table->string('tipo', 20);
+            $table->boolean('activo')->default(true);
+            $table->timestamps();
+
+            $table->index(['activo', 'fecha']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('dias_no_habiles');
+    }
+};

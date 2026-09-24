@@ -25,6 +25,7 @@
                 <tr>
                     <th>Tipo</th>
                     <th>Código</th>
+                    <th>ANS</th>
                     <th>Subtipos</th>
                     <th>Estado</th>
                     <th class="text-right">Acciones</th>
@@ -46,6 +47,11 @@
                     </td>
                     <td data-label="Código">
                         <span class="codigo-box">{{ $tipo->codigo }}</span>
+                    </td>
+                    <td data-label="ANS">
+                        <span class="text-sm font-semibold text-gray-800">
+                            {{ $tipo->ans_dias ? $tipo->ans_dias.' días '.$tipo->ans_tipo_dias : 'Sin configurar' }}
+                        </span>
                     </td>
                     <td data-label="Subtipos">
                         <div class="flex flex-wrap gap-1.5 justify-end">
@@ -81,7 +87,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="5" class="text-center py-8 text-gray-500 text-sm">
+                    <td colspan="6" class="text-center py-8 text-gray-500 text-sm">
                         No hay tipos de documentos registrados.
                     </td>
                 </tr>
@@ -110,6 +116,19 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Código (2-3 letras)</label>
                     <input type="text" name="codigo" required maxlength="3" placeholder="Ej: CT" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-[#b11226] focus:border-[#b11226] outline-none transition text-sm uppercase">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Días ANS</label>
+                        <input type="number" name="ans_dias" min="1" max="3650" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de días</label>
+                        <select name="ans_tipo_dias" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="calendario">Calendario</option>
+                            <option value="habiles">Hábiles (según calendario laboral)</option>
+                        </select>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Descripción (opcional)</label>
@@ -148,6 +167,19 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Código (2-3 letras)</label>
                     <input type="text" name="codigo" id="edit-tipo-codigo" required maxlength="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-[#b11226] focus:border-[#b11226] outline-none transition text-sm uppercase">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Días ANS</label>
+                        <input type="number" name="ans_dias" id="edit-tipo-ans-dias" min="1" max="3650" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de días</label>
+                        <select name="ans_tipo_dias" id="edit-tipo-ans-tipo" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="calendario">Calendario</option>
+                            <option value="habiles">Hábiles (según calendario laboral)</option>
+                        </select>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Descripción (opcional)</label>
@@ -246,7 +278,7 @@
 
     function abrirModalEditarTipoPorId(id) {
         const tipo = tiposData.find(item => Number(item.id) === Number(id));
-        if (tipo) abrirModalEditarTipo(tipo.id, tipo.nombre, tipo.codigo, tipo.descripcion);
+        if (tipo) abrirModalEditarTipo(tipo.id, tipo.nombre, tipo.codigo, tipo.descripcion, tipo.ans_dias, tipo.ans_tipo_dias);
     }
 
     function abrirModalSubtiposPorId(id) {
@@ -254,10 +286,12 @@
         if (tipo) abrirModalSubtipos(tipo.id, tipo.nombre, tipo.codigo);
     }
 
-    function abrirModalEditarTipo(id, nombre, codigo, desc) {
+    function abrirModalEditarTipo(id, nombre, codigo, desc, ansDias, ansTipoDias) {
         document.getElementById('edit-tipo-nombre').value = nombre;
         document.getElementById('edit-tipo-codigo').value = codigo;
         document.getElementById('edit-tipo-desc').value = desc;
+        document.getElementById('edit-tipo-ans-dias').value = ansDias ?? '';
+        document.getElementById('edit-tipo-ans-tipo').value = ansTipoDias ?? 'calendario';
         document.getElementById('form-editar-tipo').action = `/tipos/${id}`;
         document.getElementById('modal-editar-tipo').classList.remove('hidden');
     }

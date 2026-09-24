@@ -26,13 +26,18 @@ services:
       - internal
 
   app:
-    image: cristian123456/bitacora-fnc:v1.5.23
+    image: cristian123456/bitacora-fnc:v1.5.24
     container_name: bitacora_app
     restart: unless-stopped
     working_dir: /var/www
 
     env_file:
       - .env
+
+    # Solo aplica al MySQL autofirmado de la red privada de este Compose.
+    # Fuera de este entorno BackupService mantiene verificacion TLS por defecto.
+    environment:
+      BACKUP_MYSQL_SSL_VERIFY_SERVER_CERT: "false"
 
     depends_on:
       db:
@@ -52,7 +57,7 @@ services:
       - internal
 
   scheduler:
-    image: cristian123456/bitacora-fnc:v1.5.23
+    image: cristian123456/bitacora-fnc:v1.5.24
     container_name: bitacora_scheduler
     restart: unless-stopped
     working_dir: /var/www
@@ -62,6 +67,9 @@ services:
 
     env_file:
       - .env
+
+    environment:
+      BACKUP_MYSQL_SSL_VERIFY_SERVER_CERT: "false"
 
     depends_on:
       db:
@@ -76,7 +84,7 @@ services:
       - internal
 
   webserver:
-    image: cristian123456/bitacora-fnc:v1.5.23
+    image: cristian123456/bitacora-fnc:v1.5.24
     container_name: juridica_nginx
     restart: unless-stopped
 
@@ -263,7 +271,8 @@ networks:
   # Red Docker que ya existe en producción y comparte
   # Nginx Proxy Manager.
   infra-net:
-    external: true
+    name: ${INFRA_NETWORK_NAME:-infra-net}
+    external: ${INFRA_NETWORK_EXTERNAL:-false}
 
 # ==============================================================
 # VOLÚMENES PERSISTENTES

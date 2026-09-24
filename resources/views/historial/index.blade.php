@@ -80,7 +80,7 @@
             <div class="caso-meta">
                 <div class="caso-meta-item">
                     <i data-lucide="user"></i>
-                    {{ $caso->solicitante?->nombre ?? 'N/A' }}
+                    {{ $caso->solicitanteNombreActual() ?? 'N/A' }}
                 </div>
                 <div class="caso-meta-item">
                     <i data-lucide="file-text"></i>
@@ -92,7 +92,7 @@
                 </div>
                 <div class="caso-meta-item">
                     <i data-lucide="calendar"></i>
-                    Finalizado: {{ $caso->updated_at->format('d/m/Y') }}
+                    Finalizado: {{ \App\Support\LocalDate::inBogota($caso->updated_at)?->format('d/m/Y') }}
                 </div>
             </div>
         </a>

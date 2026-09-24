@@ -284,11 +284,10 @@ class BackupService
                 throw new RuntimeException('No fue posible preparar los archivos temporales del dump.');
             }
 
-            $cnfContent = "[client]\n"
-                .'user='.$this->mysqlOptionValue((string) $username)."\n"
-                .(filled($password)
-                    ? 'password='.$this->mysqlOptionValue((string) $password)."\n"
-                    : '');
+            $cnfContent = $this->mysqlCredentialFileContent(
+                (string) $username,
+                (string) $password,
+            );
 
             if (File::put($cnfPath, $cnfContent) !== strlen($cnfContent)) {
                 throw new RuntimeException('No fue posible escribir el archivo temporal de MySQL.');
@@ -342,6 +341,21 @@ class BackupService
     protected function mysqlOptionValue(string $value): string
     {
         return '"'.str_replace(['\\', '"'], ['\\\\', '\\"'], $value).'"';
+    }
+
+    protected function mysqlCredentialFileContent(string $username, string $password): string
+    {
+        $content = "[client]\n"
+            .'user='.$this->mysqlOptionValue($username)."\n"
+            .(filled($password)
+                ? 'password='.$this->mysqlOptionValue($password)."\n"
+                : '');
+
+        if (! config('backup.mysql_ssl_verify_server_cert', true)) {
+            $content .= "ssl-verify-server-cert=0\n";
+        }
+
+        return $content;
     }
 
     protected function buildR2Path(string $prefix, string $fileName): string

@@ -82,7 +82,7 @@
         </a>
         @endif
 
-        @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor']))
+        @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor', 'Abogado']))
         <span class="nav-section-title">Gestión</span>
         @endif
 
@@ -100,7 +100,7 @@
         </a>
         @endif
 
-        @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor']))
+        @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor', 'Abogado']))
         <a href="{{ route('historial.index') }}" class="nav-item {{ request()->routeIs('historial.*') ? 'active' : '' }}">
             <i data-lucide="clock" style="width:18px;height:18px;"></i>
             Historial Global
@@ -136,11 +136,27 @@
 
         <div class="header-right">
 
+            @auth
+            @php
+                $sinLeer = auth()->user()->notificaciones()
+                    ->where('leido', false)
+                    ->where(fn ($query) => $query->whereNull('tipo')->orWhere('tipo', '!=', 'mensaje'))
+                    ->count();
+                $mensajesSinLeer = auth()->user()->notificaciones()
+                    ->where('tipo', 'mensaje')
+                    ->where('leido', false)
+                    ->count();
+                $tareasPendientes = auth()->user()->esConsultor() ? 0 : auth()->user()->tareas()
+                    ->where('estado', '!=', 'Completada')
+                    ->whereHas('caso.usuarios', fn ($usuarios) => $usuarios
+                        ->where('users.id', auth()->id())
+                        ->where('caso_usuario.activo', true))
+                    ->count();
+            @endphp
             {{-- Notificaciones --}}
-            <div class="relative" id="notif-container">
+            <div class="relative header-indicator-container" id="notif-container">
                 <div class="notif-bell cursor-pointer" title="Notificaciones" id="notif-btn" onclick="toggleNotificaciones()">
                     <i data-lucide="bell" style="width:20px;height:20px;"></i>
-                    @php $sinLeer = auth()->user()?->notificacionesSinLeer() ?? 0; @endphp
                     @if($sinLeer > 0)
                         <span class="notif-badge" id="notif-badge-count">{{ $sinLeer > 9 ? '9+' : $sinLeer }}</span>
                     @endif
@@ -150,12 +166,11 @@
                 <div id="notif-dropdown" class="hidden absolute right-0 mt-2 w-80 max-w-[90vw] md:max-w-sm bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
                     <div class="p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                         <h3 class="font-bold text-sm text-gray-800">Notificaciones</h3>
-                        @if($sinLeer > 0)
-                        <form action="{{ route('notificaciones.marcar_leidas') }}" method="POST">
+                        <form id="notif-mark-read-form" data-mark-read-form action="{{ route('notificaciones.marcar_leidas') }}" method="POST" class="{{ $sinLeer > 0 ? '' : 'hidden' }}">
                             @csrf
+                            <input type="hidden" name="categoria" value="general">
                             <button type="submit" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Marcar leídas</button>
                         </form>
-                        @endif
                     </div>
                     <div class="max-h-[300px] overflow-y-auto" id="notif-list">
                         <!-- Las notificaciones se cargan por JS -->
@@ -163,6 +178,48 @@
                     </div>
                 </div>
             </div>
+
+            {{-- Mensajes --}}
+            <div class="relative header-indicator-container" id="message-indicator-container">
+                <div class="notif-bell cursor-pointer" title="Mensajes" id="message-indicator-btn" onclick="toggleMensajesHeader()">
+                    <i data-lucide="message-square" style="width:20px;height:20px;"></i>
+                    @if($mensajesSinLeer > 0)
+                        <span class="notif-badge" id="message-badge-count">{{ $mensajesSinLeer > 9 ? '9+' : $mensajesSinLeer }}</span>
+                    @endif
+                </div>
+                <div id="message-dropdown" class="header-indicator-dropdown hidden absolute right-0 mt-2 w-80 max-w-[90vw] md:max-w-sm bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
+                    <div class="p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                        <h3 class="font-bold text-sm text-gray-800">Mensajes</h3>
+                        <form id="message-mark-read-form" data-mark-read-form action="{{ route('notificaciones.marcar_leidas') }}" method="POST" class="{{ $mensajesSinLeer > 0 ? '' : 'hidden' }}">
+                            @csrf
+                            <input type="hidden" name="categoria" value="mensaje">
+                            <button type="submit" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Marcar leídos</button>
+                        </form>
+                    </div>
+                    <div class="max-h-[300px] overflow-y-auto" id="message-list">
+                        <div class="p-4 text-center text-sm text-gray-500">Cargando...</div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Mis tareas pendientes --}}
+            <div class="relative header-indicator-container" id="task-indicator-container">
+                <div class="notif-bell cursor-pointer" title="Mis tareas pendientes" id="task-indicator-btn" onclick="toggleTareasHeader()">
+                    <i data-lucide="list-checks" style="width:20px;height:20px;"></i>
+                    @if($tareasPendientes > 0)
+                        <span class="notif-badge" id="task-badge-count">{{ $tareasPendientes > 9 ? '9+' : $tareasPendientes }}</span>
+                    @endif
+                </div>
+                <div id="task-dropdown" class="header-indicator-dropdown hidden absolute right-0 mt-2 w-80 max-w-[90vw] md:max-w-sm bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
+                    <div class="p-3 border-b border-gray-100 bg-gray-50">
+                        <h3 class="font-bold text-sm text-gray-800">Tareas pendientes</h3>
+                    </div>
+                    <div class="max-h-[300px] overflow-y-auto" id="task-list">
+                        <div class="p-4 text-center text-sm text-gray-500">Cargando...</div>
+                    </div>
+                </div>
+            </div>
+            @endauth
 
             {{-- Usuario --}}
             <div class="user-info">
@@ -238,7 +295,7 @@
             </a>
             @endif
 
-            @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor']))
+            @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor', 'Abogado']))
             <span class="nav-section-title">Reportes</span>
             <a href="{{ route('historial.index') }}" class="drawer-nav-item {{ request()->routeIs('historial.*') ? 'active' : '' }}">
                 <i data-lucide="clock" aria-hidden="true"></i>
@@ -298,66 +355,235 @@
     });
 
     function toggleNotificaciones() {
-        const dropdown = document.getElementById('notif-dropdown');
-        dropdown.classList.toggle('hidden');
-        
-        if (!dropdown.classList.contains('hidden')) {
-            cargarNotificaciones();
+        toggleHeaderDropdown('notif-dropdown', true);
+    }
+
+    function toggleMensajesHeader() {
+        toggleHeaderDropdown('message-dropdown');
+    }
+
+    function toggleTareasHeader() {
+        toggleHeaderDropdown('task-dropdown');
+    }
+
+    async function toggleHeaderDropdown(dropdownId, marcarGenerales = false) {
+        const dropdown = document.getElementById(dropdownId);
+        if (!dropdown) return;
+        const shouldOpen = dropdown.classList.contains('hidden');
+        document.querySelectorAll('.header-indicator-dropdown').forEach(item => item.classList.add('hidden'));
+        dropdown.classList.toggle('hidden', !shouldOpen);
+        if (shouldOpen) {
+            const data = await cargarNotificaciones();
+            if (marcarGenerales) {
+                const ids = (data?.notificaciones ?? []).filter(item => !item.leido).map(item => item.id);
+                if (ids.length > 0) await marcarNotificacionesLeidas('general', ids);
+            }
         }
     }
 
-    function cargarNotificaciones() {
-        fetch('{{ route("notificaciones.recientes") }}')
-            .then(response => response.json())
-            .then(data => {
-                const list = document.getElementById('notif-list');
-                list.replaceChildren();
+    function actualizarBadge(buttonId, badgeId, cantidad) {
+        const button = document.getElementById(buttonId);
+        let badge = document.getElementById(badgeId);
 
-                if (data.length === 0) {
-                    const empty = document.createElement('div');
-                    empty.className = 'p-4 text-center text-sm text-gray-500';
-                    empty.textContent = 'No tienes notificaciones.';
-                    list.appendChild(empty);
-                    return;
-                }
-
-                data.forEach(n => {
-                    const bg = n.leido ? 'bg-white' : 'bg-blue-50';
-                    const row = document.createElement('div');
-                    row.className = `p-3 border-b border-gray-50 flex gap-3 hover:bg-gray-50 transition ${bg}`;
-
-                    const iconWrapper = document.createElement('div');
-                    iconWrapper.className = 'mt-0.5 shrink-0';
-                    const icon = document.createElement('i');
-                    icon.dataset.lucide = n.tipo === 'success' ? 'check-circle' : 'info';
-                    icon.className = n.tipo === 'success' ? 'w-4 h-4 text-green-500' : 'w-4 h-4 text-blue-500';
-                    iconWrapper.appendChild(icon);
-
-                    const details = document.createElement('div');
-                    const title = document.createElement('h4');
-                    title.className = 'text-xs font-bold text-gray-800 mb-0.5';
-                    title.textContent = n.titulo ?? '';
-                    const message = document.createElement('p');
-                    message.className = 'text-xs text-gray-600 leading-snug';
-                    message.textContent = n.mensaje ?? '';
-                    const date = document.createElement('span');
-                    date.className = 'text-[10px] text-gray-400 mt-1 block';
-                    date.textContent = n.fecha ?? '';
-
-                    details.append(title, message, date);
-                    row.append(iconWrapper, details);
-                    list.appendChild(row);
-                });
-                lucide.createIcons();
-            });
+        if (cantidad > 0) {
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.id = badgeId;
+                badge.className = 'notif-badge';
+                button?.appendChild(badge);
+            }
+            badge.textContent = cantidad > 9 ? '9+' : String(cantidad);
+        } else {
+            badge?.remove();
+        }
     }
+
+    function renderizarNotificaciones(listId, elementos, mensajeVacio) {
+        const list = document.getElementById(listId);
+        if (!list) return;
+        list.replaceChildren();
+
+        if (elementos.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'p-4 text-center text-sm text-gray-500';
+            empty.textContent = mensajeVacio;
+            list.appendChild(empty);
+            return;
+        }
+
+        elementos.forEach(n => {
+            const row = document.createElement(n.url ? 'a' : 'div');
+            if (n.url) {
+                row.href = n.url;
+                row.addEventListener('click', async event => {
+                    if (n.leido) return;
+                    event.preventDefault();
+                    try {
+                        await marcarNotificacionesLeidas(n.tipo === 'mensaje' ? 'mensaje' : 'general', [n.id]);
+                    } catch (error) {
+                        console.error('Error marcando la alerta seleccionada como leída:', error);
+                    } finally {
+                        window.location.href = n.url;
+                    }
+                });
+            }
+            row.dataset.notificationId = n.id;
+            row.className = `p-3 border-b border-gray-50 flex gap-3 hover:bg-gray-50 transition ${n.leido ? 'bg-white' : 'bg-blue-50'}`;
+
+            const iconWrapper = document.createElement('div');
+            iconWrapper.className = 'mt-0.5 shrink-0';
+            const icon = document.createElement('i');
+            icon.dataset.lucide = n.tipo === 'mensaje' ? 'message-square' : (n.tipo === 'success' ? 'check-circle' : 'info');
+            icon.className = n.tipo === 'success' ? 'w-4 h-4 text-green-500' : 'w-4 h-4 text-blue-500';
+            iconWrapper.appendChild(icon);
+
+            const details = document.createElement('div');
+            const title = document.createElement('h4');
+            title.className = 'text-xs font-bold text-gray-800 mb-0.5';
+            title.textContent = n.titulo ?? '';
+            const message = document.createElement('p');
+            message.className = 'text-xs text-gray-600 leading-snug';
+            message.textContent = n.mensaje ?? '';
+            const date = document.createElement('span');
+            date.className = 'text-[10px] text-gray-400 mt-1 block';
+            date.textContent = n.fecha ?? '';
+
+            details.append(title, message, date);
+            row.append(iconWrapper, details);
+            list.appendChild(row);
+        });
+    }
+
+    function renderizarTareas(tareas) {
+        const list = document.getElementById('task-list');
+        if (!list) return;
+        list.replaceChildren();
+
+        if (tareas.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'p-4 text-center text-sm text-gray-500';
+            empty.textContent = 'No tienes tareas pendientes.';
+            list.appendChild(empty);
+            return;
+        }
+
+        tareas.forEach(tarea => {
+            const row = document.createElement(tarea.url ? 'a' : 'div');
+            if (tarea.url) row.href = tarea.url;
+            row.className = 'block p-3 border-b border-gray-50 hover:bg-gray-50 transition';
+            const caso = document.createElement('div');
+            caso.className = 'text-xs font-bold text-gray-800 mb-1';
+            caso.textContent = tarea.caso ?? 'Caso';
+            const descripcion = document.createElement('p');
+            descripcion.className = 'text-xs text-gray-600 leading-snug';
+            descripcion.textContent = tarea.descripcion ?? '';
+            row.append(caso, descripcion);
+            list.appendChild(row);
+        });
+    }
+
+    function cargarNotificaciones() {
+        return fetch('{{ route("notificaciones.recientes", [], false) }}', { headers: { 'Accept': 'application/json' } })
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                const notificaciones = data.notificaciones ?? [];
+                const sinLeer = Number(data.sinLeer ?? 0);
+                const mensajes = data.mensajes ?? [];
+                const mensajesSinLeer = Number(data.mensajesSinLeer ?? 0);
+                const tareas = data.tareas ?? [];
+                const tareasPendientes = Number(data.tareasPendientes ?? 0);
+                const markReadForm = document.getElementById('notif-mark-read-form');
+                const messageMarkReadForm = document.getElementById('message-mark-read-form');
+
+                actualizarBadge('notif-btn', 'notif-badge-count', sinLeer);
+                actualizarBadge('message-indicator-btn', 'message-badge-count', mensajesSinLeer);
+                actualizarBadge('task-indicator-btn', 'task-badge-count', tareasPendientes);
+                markReadForm?.classList.toggle('hidden', sinLeer === 0);
+                messageMarkReadForm?.classList.toggle('hidden', mensajesSinLeer === 0);
+                renderizarNotificaciones('notif-list', notificaciones, 'No tienes notificaciones.');
+                renderizarNotificaciones('message-list', mensajes, 'No tienes mensajes nuevos.');
+                renderizarTareas(tareas);
+                lucide.createIcons();
+                return data;
+            })
+            .catch(error => console.error('Error actualizando notificaciones:', error));
+    }
+
+    window.notificationPoller?.stop();
+    (() => {
+        let timer = null;
+        let stopped = false;
+
+        const schedule = () => {
+            clearTimeout(timer);
+            if (!stopped) timer = setTimeout(poll, 5000);
+        };
+        const poll = async () => {
+            if (document.visibilityState === 'visible') {
+                await cargarNotificaciones();
+            }
+            schedule();
+        };
+
+        window.notificationPoller = {
+            stop() { stopped = true; clearTimeout(timer); },
+            poll,
+        };
+
+        cargarNotificaciones();
+        schedule();
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') poll();
+        });
+    })();
+
+    async function marcarNotificacionesLeidas(categoria, ids = []) {
+        const body = new FormData();
+        body.append('categoria', categoria);
+        ids.forEach(id => body.append('ids[]', id));
+
+        const response = await fetch('{{ route("notificaciones.marcar_leidas", [], false) }}', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body,
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        await cargarNotificaciones();
+    }
+
+    document.querySelectorAll('[data-mark-read-form]').forEach(form => {
+        form.addEventListener('submit', async function (event) {
+            event.preventDefault();
+
+            try {
+                const response = await fetch(this.action, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                    body: new FormData(this),
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                await cargarNotificaciones();
+            } catch (error) {
+                console.error('Error marcando notificaciones como leídas:', error);
+            }
+        });
+    });
 
     // Cerrar al hacer clic fuera
     document.addEventListener('click', function(event) {
-        const container = document.getElementById('notif-container');
-        const dropdown = document.getElementById('notif-dropdown');
-        if (container && dropdown && !container.contains(event.target)) {
-            dropdown.classList.add('hidden');
+        if (!event.target.closest('.header-indicator-container')) {
+            document.querySelectorAll('.header-indicator-dropdown').forEach(dropdown => {
+                dropdown.classList.add('hidden');
+            });
         }
     });
 

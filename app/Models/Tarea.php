@@ -15,6 +15,7 @@ class Tarea extends Model
         'caso_id',
         'user_id',
         'descripcion',
+        'tipo_accion',
         'estado',
         'orden',
         'fecha_inicio',
@@ -42,5 +43,15 @@ class Tarea extends Model
     public function observacion()
     {
         return $this->hasOne(Observacion::class, 'tarea_id');
+    }
+
+    public function solicitudesCorreccion()
+    {
+        return $this->hasMany(SolicitudCorreccionTarea::class);
+    }
+
+    public function versiones()
+    {
+        return $this->hasMany(TareaVersion::class)->orderBy('version');
     }
 }

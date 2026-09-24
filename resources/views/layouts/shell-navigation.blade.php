@@ -44,10 +44,8 @@
         });
         trackedListeners = [];
 
-        const match = currentModule.match(/^\/casos\/(\d+)(?:$|\?)/);
-        if (match && window.Echo?.leave) {
-            window.Echo.leave(`caso.${match[1]}`);
-        }
+        window.caseChatPoller?.stop();
+        window.caseStatePoller?.stop();
         document.querySelectorAll('[data-shell-module-style]').forEach(node => node.remove());
     }
 

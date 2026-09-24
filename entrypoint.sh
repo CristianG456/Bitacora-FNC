@@ -1,6 +1,11 @@
 #!/bin/sh
 set -eu
 
+# El volumen storage puede estar vacio en el primer arranque.
+mkdir -p /var/www/storage/app/private /var/www/storage/app/public /var/www/storage/app/backups /var/www/storage/framework/cache/data /var/www/storage/framework/sessions /var/www/storage/framework/testing /var/www/storage/framework/views /var/www/storage/logs /var/www/bootstrap/cache
+chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
+chmod -R 775 /var/www/storage /var/www/bootstrap/cache
+
 echo "=== Iniciando contenedor de la aplicacion ==="
 : "${DB_HOST:?DB_HOST es obligatorio}"
 : "${DB_PORT:=3306}"
@@ -35,12 +40,6 @@ fi
 php artisan db:seed --class=RolesSeeder --force
 # No reemplaza un administrador ya existente.
 php artisan app:create-admin
-
-mkdir -p /var/www/storage/framework/cache/data \
-    /var/www/storage/framework/sessions /var/www/storage/framework/views \
-    /var/www/storage/logs /var/www/bootstrap/cache
-chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
-chmod -R 775 /var/www/storage /var/www/bootstrap/cache
 
 echo "=== Iniciando php-fpm ==="
 exec php-fpm

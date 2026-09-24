@@ -164,7 +164,7 @@
                                 <span class="badge {{ $badgeClass }}">{{ $caso->estado }}</span>
                             </td>
                             <td class="td-date">
-                                {{ $caso->created_at->format('d/m/Y') }}
+                                {{ \App\Support\LocalDate::inBogota($caso->created_at)?->format('d/m/Y') }}
                             </td>
                             <td>
                                 <a href="{{ route('casos.show', $caso->id) }}" class="btn-ver">Ver</a>
@@ -198,7 +198,7 @@
                         <div class="case-meta">
                             <span class="meta-item">Tipo: {{ $caso->tipo?->nombre ?? '—' }}</span>
                             <span class="meta-separator">•</span>
-                            <span class="meta-item">Asignado: {{ $caso->pivot?->fecha_asignacion ? \Carbon\Carbon::parse($caso->pivot->fecha_asignacion)->format('j/n/Y') : $caso->created_at->format('j/n/Y') }}</span>
+                            <span class="meta-item">Asignado: {{ \App\Support\LocalDate::inBogota($caso->pivot?->fecha_asignacion ?? $caso->created_at)?->format('j/n/Y') }}</span>
                         </div>
                     </div>
                 </div>

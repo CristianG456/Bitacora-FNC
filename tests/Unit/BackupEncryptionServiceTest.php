@@ -50,6 +50,19 @@ class BackupEncryptionServiceTest extends TestCase
         $this->assertIsResource($stream);
         $this->assertSame($sql, stream_get_contents($stream));
         fclose($stream);
+
+        $checksum = $archive->getFromName('checksum.sha256');
+        $this->assertIsString($checksum);
+        $this->assertSame(hash('sha256', $sql).'  database.sql', trim($checksum));
+
+        $metadataJson = $archive->getFromName('metadata.json');
+        $this->assertIsString($metadataJson);
+        $metadata = json_decode($metadataJson, true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame(1, $metadata['format_version']);
+        $this->assertSame('database.sql', $metadata['database_file']);
+        $this->assertSame('checksum.sha256', $metadata['checksum_file']);
+        $this->assertSame(hash('sha256', $sql), $metadata['database_sha256']);
+        $this->assertSame(strlen($sql), $metadata['database_size']);
         $this->assertTrue($archive->close());
     }
 

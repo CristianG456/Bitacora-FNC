@@ -480,6 +480,26 @@ class BackupReliabilityTest extends TestCase
         );
     }
 
+    public function test_mysql_tls_verification_is_disabled_only_when_explicitly_configured(): void
+    {
+        $service = new class(Mockery::mock(BackupEncryptionService::class), Mockery::mock(BackupMailService::class), Mockery::mock(R2BackupStorageService::class)) extends BackupService
+        {
+            public function credentialContents(string $username, string $password): string
+            {
+                return $this->mysqlCredentialFileContent($username, $password);
+            }
+        };
+
+        config(['backup.mysql_ssl_verify_server_cert' => true]);
+        $secureDefaults = $service->credentialContents('backup-user', 'secret');
+        $this->assertStringNotContainsString('ssl-verify-server-cert=0', $secureDefaults);
+
+        config(['backup.mysql_ssl_verify_server_cert' => false]);
+        $dockerInternal = $service->credentialContents('backup-user', 'secret');
+        $this->assertStringContainsString('ssl-verify-server-cert=0', $dockerInternal);
+        $this->assertStringContainsString('password="secret"', $dockerInternal);
+    }
+
     public function test_mysql_credential_temporaries_are_cleaned_when_permission_setup_fails(): void
     {
         $originalConnection = config('database.default');

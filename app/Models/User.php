@@ -84,6 +84,11 @@ class User extends Authenticatable
         return $this->role && $this->role->nombre === 'Consultor';
     }
 
+    public function esAbogado(): bool
+    {
+        return $this->role && $this->role->nombre === 'Abogado';
+    }
+
     public function tieneRol(string $rol): bool
     {
         return $this->role && $this->role->nombre === $rol;

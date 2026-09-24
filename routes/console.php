@@ -26,3 +26,9 @@ try {
         'exception' => $e::class,
     ]);
 }
+
+\Illuminate\Support\Facades\Schedule::command('ans:verificar')
+    ->dailyAt('07:00')
+    ->timezone('America/Bogota')
+    ->withoutOverlapping()
+    ->onOneServer();

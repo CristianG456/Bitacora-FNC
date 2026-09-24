@@ -9,6 +9,8 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\ConfiguracionRespaldoController;
 use App\Http\Controllers\HistorialController;
 use App\Http\Controllers\TipoProcesoController;
+use App\Http\Controllers\CorreccionCasoController;
+use App\Http\Controllers\CorreccionTareaController;
 
 //  AUTENTICACIÓN (públicas)
 
@@ -87,6 +89,8 @@ Route::middleware(['auth'])->group(function () {
     // Chat del caso
     Route::post('/casos/{caso}/mensajes', [CasoController::class, 'enviarMensaje'])->name('casos.mensajes');
     Route::get('/casos/{caso}/mensajes/json', [CasoController::class, 'getMensajesJson'])->name('casos.mensajes.json');
+    Route::post('/casos/{caso}/mensajes/leidos', [CasoController::class, 'marcarMensajesLeidos'])->name('casos.mensajes.leidos');
+    Route::get('/casos/{caso}/estado', [CasoController::class, 'estadoJson'])->name('casos.estado');
 
     // Gestión de usuarios asignados al caso
     Route::middleware(['role:Administrador,Juridica'])->group(function () {
@@ -96,9 +100,19 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/casos/{caso}/finalizar', [CasoController::class, 'finalizar'])->name('casos.finalizar');
     });
 
+    Route::middleware(['role:Juridica'])->group(function () {
+        Route::put('/casos/{caso}/correccion', [CorreccionCasoController::class, 'update'])->name('casos.correccion');
+        Route::post('/solicitudes-correccion/{solicitud}/aprobar', [CorreccionTareaController::class, 'aprobar'])->name('tareas.correccion.aprobar');
+        Route::post('/solicitudes-correccion/{solicitud}/rechazar', [CorreccionTareaController::class, 'rechazar'])->name('tareas.correccion.rechazar');
+    });
+
     // Completar tarea (Cualquier usuario asignado)
     Route::post('/casos/{caso}/tareas/{tarea}/completar', [TareaController::class, 'completar'])
         ->name('tareas.completar');
+    Route::post('/casos/{caso}/tareas/{tarea}/solicitar-correccion', [CorreccionTareaController::class, 'solicitar'])
+        ->name('tareas.correccion.solicitar');
+    Route::put('/casos/{caso}/tareas/{tarea}/corregir/{solicitud}', [CorreccionTareaController::class, 'corregir'])
+        ->name('tareas.correccion.aplicar');
 
     // Crear y eliminar tareas (solo Administrador y Jurídica)
     Route::middleware(['role:Administrador,Juridica'])->group(function () {
@@ -109,7 +123,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // HISTORIAL GLOBAL (Solo Administrador, Juridica y Consultor)
-    Route::middleware(['role:Administrador,Juridica,Consultor'])->group(function () {
+    Route::middleware(['role:Administrador,Juridica,Consultor,Abogado'])->group(function () {
         Route::get('/historial', [HistorialController::class, 'index'])->name('historial.index');
         Route::get('/historial/exportar/excel', [HistorialController::class, 'exportarExcel'])->name('historial.exportar.excel');
         Route::get('/historial/exportar/pdf', [HistorialController::class, 'exportarPdf'])->name('historial.exportar.pdf');

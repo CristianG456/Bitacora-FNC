@@ -19,6 +19,7 @@ class TareaRequest extends FormRequest
         return [
             'user_id'     => ['required', 'exists:users,id'],
             'descripcion' => ['required', 'string', 'min:10', 'max:2000'],
+            'tipo_accion' => ['nullable', 'in:normal,firma'],
             'orden'       => ['nullable', 'integer', 'min:1'],
             'fecha_inicio' => ['nullable', 'date'],
             'fecha_fin'    => ['nullable', 'date', 'after_or_equal:fecha_inicio'],

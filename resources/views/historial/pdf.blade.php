@@ -80,7 +80,7 @@
 
     <div class="header">
         <h1>Historial Global del Sistema</h1>
-        <p>Bitácora de casos finalizados generada el {{ now()->format('d/m/Y H:i') }}</p>
+        <p>Bitácora de casos finalizados generada el {{ \App\Support\LocalDate::inBogota(now())?->format('d/m/Y H:i') }}</p>
     </div>
 
     <table>
@@ -97,7 +97,7 @@
         <tbody>
             @foreach($eventos as $evento)
             <tr>
-                <td>{{ $evento->created_at->format('d/m/Y H:i') }}</td>
+                <td>{{ \App\Support\LocalDate::inBogota($evento->created_at)?->format('d/m/Y H:i') }}</td>
                 <td>{{ $evento->caso ? $evento->caso->radicado : 'N/A' }}</td>
                 <td>{{ $evento->accion }}</td>
                 <td>{{ $evento->descripcion }}</td>

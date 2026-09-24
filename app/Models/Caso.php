@@ -19,6 +19,16 @@ class Caso extends Model
         'observacion_inicial',
         'link_drive',
         'solicitante_id',
+        'solicitante_nombre_snapshot',
+        'solicitante_tipo_snapshot',
+        'solicitante_tipo_documento_id',
+        'solicitante_documento_snapshot',
+        'fecha_solicitud',
+        'ans_fecha_inicio',
+        'ans_dias',
+        'ans_tipo_dias',
+        'ans_fecha_limite',
+        'ans_estado',
         'estado',
         'fecha_inicio',
         'fecha_fin',
@@ -28,6 +38,10 @@ class Caso extends Model
     protected $casts = [
         'fecha_inicio'        => 'date',
         'fecha_fin'           => 'date',
+        'fecha_solicitud'     => 'date',
+        'ans_fecha_inicio'    => 'date',
+        'ans_dias'            => 'integer',
+        'ans_fecha_limite'    => 'date',
         'link_drive'          => 'encrypted',
         'observacion_inicial' => 'encrypted',
     ];
@@ -47,6 +61,31 @@ class Caso extends Model
     public function solicitante()
     {
         return $this->belongsTo(Solicitante::class, 'solicitante_id');
+    }
+
+    public function solicitanteTipoDocumento()
+    {
+        return $this->belongsTo(TipoDocumentoSolicitante::class, 'solicitante_tipo_documento_id');
+    }
+
+    public function solicitanteNombreActual(): ?string
+    {
+        return $this->solicitante_nombre_snapshot ?? $this->solicitante?->nombre;
+    }
+
+    public function solicitanteTipoActual(): ?string
+    {
+        return $this->solicitante_tipo_snapshot ?? $this->solicitante?->tipo_solicitante;
+    }
+
+    public function solicitanteDocumentoActual(): ?string
+    {
+        return $this->solicitante_documento_snapshot ?? $this->solicitante?->documento;
+    }
+
+    public function solicitanteTipoDocumentoActual(): ?TipoDocumentoSolicitante
+    {
+        return $this->solicitanteTipoDocumento ?? $this->solicitante?->tipoDocumento;
     }
 
     public function creador()
@@ -108,9 +147,40 @@ class Caso extends Model
      */
     public function puedeFinalizarse(): bool
     {
+        $usuariosActivos = $this->usuarios()
+            ->wherePivot('activo', true)
+            ->pluck('users.id');
+
+        if ($usuariosActivos->isEmpty()) {
+            return false;
+        }
+
+        $usuariosConTareas = $this->tareas()
+            ->whereIn('user_id', $usuariosActivos)
+            ->distinct()
+            ->count('user_id');
+
+        if ($usuariosConTareas !== $usuariosActivos->count()) {
+            return false;
+        }
+
         return !$this->tareas()
-            ->whereIn('estado', ['Pendiente', 'En proceso'])
+            ->whereIn('user_id', $usuariosActivos)
+            ->where('estado', '!=', 'Completada')
             ->exists();
+    }
+
+    public function sincronizarEstadoPorTareas(): void
+    {
+        if ($this->estado === 'Finalizado') {
+            return;
+        }
+
+        if ($this->puedeFinalizarse()) {
+            $this->update(['estado' => 'Completado']);
+        } elseif ($this->estado === 'Completado') {
+            $this->update(['estado' => 'En proceso']);
+        }
     }
 
     // ─── Scopes ────────────────────────────────────────────────────

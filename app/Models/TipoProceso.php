@@ -13,10 +13,13 @@ class TipoProceso extends Model
         'codigo',
         'descripcion',
         'activo',
+        'ans_dias',
+        'ans_tipo_dias',
     ];
 
     protected $casts = [
         'activo' => 'boolean',
+        'ans_dias' => 'integer',
     ];
 
     public function subtipos()

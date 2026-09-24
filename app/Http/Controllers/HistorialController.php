@@ -6,6 +6,7 @@ use App\Models\Bitacora;
 use App\Models\Caso;
 use App\Models\User;
 use App\Models\TipoProceso;
+use App\Support\LocalDate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Response;
 
@@ -26,6 +27,8 @@ class HistorialController extends Controller
             $query->where(function($q) use ($search) {
                 $q->where('radicado', 'like', '%' . $search . '%')
                   ->orWhere('descripcion', 'like', '%' . $search . '%')
+                  ->orWhere('solicitante_nombre_snapshot', 'like', '%' . $search . '%')
+                  ->orWhere('solicitante_documento_snapshot', 'like', '%' . $search . '%')
                   ->orWhereHas('solicitante', function($sq) use ($search) {
                       $sq->where('nombre', 'like', '%' . $search . '%')
                          ->orWhere('documento', 'like', '%' . $search . '%');
@@ -99,6 +102,8 @@ class HistorialController extends Controller
         if ($request->filled('radicado')) {
             $query->whereHas('caso', function($q) use ($request) {
                 $q->where('radicado', 'like', '%' . $request->radicado . '%')
+                  ->orWhere('solicitante_nombre_snapshot', 'like', '%' . $request->radicado . '%')
+                  ->orWhere('solicitante_documento_snapshot', 'like', '%' . $request->radicado . '%')
                   ->orWhereHas('solicitante', function($sq) use ($request) {
                       $sq->where('nombre', 'like', '%' . $request->radicado . '%')
                          ->orWhere('documento', 'like', '%' . $request->radicado . '%');
@@ -144,7 +149,7 @@ class HistorialController extends Controller
 
             foreach ($eventos as $evento) {
                 fputcsv($file, [
-                    $evento->created_at->format('d/m/Y - H:i'),
+                    LocalDate::inBogota($evento->created_at)?->format('d/m/Y - H:i'),
                     $evento->caso ? $evento->caso->radicado : 'N/A',
                     $evento->accion,
                     $evento->descripcion,
@@ -173,6 +178,8 @@ class HistorialController extends Controller
         if ($request->filled('radicado')) {
             $query->whereHas('caso', function($q) use ($request) {
                 $q->where('radicado', 'like', '%' . $request->radicado . '%')
+                  ->orWhere('solicitante_nombre_snapshot', 'like', '%' . $request->radicado . '%')
+                  ->orWhere('solicitante_documento_snapshot', 'like', '%' . $request->radicado . '%')
                   ->orWhereHas('solicitante', function($sq) use ($request) {
                       $sq->where('nombre', 'like', '%' . $request->radicado . '%')
                          ->orWhere('documento', 'like', '%' . $request->radicado . '%');

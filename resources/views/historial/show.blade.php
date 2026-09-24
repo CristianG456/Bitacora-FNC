@@ -37,11 +37,11 @@
     <div class="caso-info-grid">
         <div>
             <div class="info-item-label">Solicitante</div>
-            <div class="info-item-value">{{ $caso->solicitante?->nombre ?? 'N/A' }}</div>
+            <div class="info-item-value">{{ $caso->solicitanteNombreActual() ?? 'N/A' }}</div>
         </div>
         <div>
             <div class="info-item-label">Documento</div>
-            <div class="info-item-value">{{ $caso->solicitante?->documento ?? 'N/A' }}</div>
+            <div class="info-item-value">{{ $caso->solicitanteDocumentoActual() ?? 'N/A' }}</div>
         </div>
         <div>
             <div class="info-item-label">Usuarios Asignados</div>
@@ -53,11 +53,11 @@
         </div>
         <div>
             <div class="info-item-label">Fecha Creación</div>
-            <div class="info-item-value">{{ $caso->created_at->format('d/m/Y') }}</div>
+            <div class="info-item-value">{{ \App\Support\LocalDate::inBogota($caso->created_at)?->format('d/m/Y') }}</div>
         </div>
         <div>
             <div class="info-item-label">Fecha Finalización</div>
-            <div class="info-item-value">{{ $caso->updated_at->format('d/m/Y') }}</div>
+            <div class="info-item-value">{{ \App\Support\LocalDate::inBogota($caso->updated_at)?->format('d/m/Y') }}</div>
         </div>
     </div>
 </div>
@@ -136,9 +136,10 @@
                     $icono = 'edit-3';
                     $badgeClass = 'bg-gray-badge';
                 }
+                $detalleCorreccion = \App\Support\TaskCorrectionAuditPresenter::make($evento);
             @endphp
 
-            <div class="timeline-item {{ $claseEvento }}">
+            <div id="audit-event-{{ $evento->id }}" data-audit-action="{{ $evento->accion }}" class="timeline-item {{ $claseEvento }}">
                 <div class="timeline-icon">
                     <i data-lucide="{{ $icono }}" style="width: 14px; height: 14px;"></i>
                 </div>
@@ -148,14 +149,16 @@
                             <span class="badge-event {{ $badgeClass }}">{{ $evento->accion }}</span>
                         </div>
                         <div class="event-time">
-                            {{ $evento->created_at->format('d/m/Y - H:i') }}
+                            {{ \App\Support\LocalDate::inBogota($evento->created_at)?->format('d/m/Y - H:i') }}
                         </div>
                     </div>
                     
                     <div class="event-desc text-sm mt-1">
                         {{ $evento->descripcion }}
+
+                        @include('components.task-correction-audit-details', ['detalle' => $detalleCorreccion, 'compacto' => false])
                         
-                        @if(!empty($evento->metadata) && isset($evento->metadata['observacion']))
+                        @if(!$detalleCorreccion && !empty($evento->metadata) && isset($evento->metadata['observacion']))
                             <div class="mt-2 p-2.5 bg-yellow-50/50 border border-yellow-100 rounded text-gray-700 italic text-xs">
                                 <span class="font-semibold text-gray-900 not-italic block mb-0.5"><i data-lucide="message-square" style="width:12px;height:12px;display:inline;margin-top:-2px;"></i> Observación:</span> 
                                 {{ $evento->metadata['observacion'] }}

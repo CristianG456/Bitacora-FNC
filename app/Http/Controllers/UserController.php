@@ -137,7 +137,7 @@ class UserController extends Controller
     {
         $query = $request->input('q');
 
-        $users = User::select('id', 'name', 'email')->where('activo', true);
+        $users = User::select('id', 'name', 'email', 'rol_id')->with('role:id,nombre')->where('activo', true);
 
         // Ocultar administradores si el usuario actual no es administrador
         if (!auth()->user()->tieneRol('Administrador')) {

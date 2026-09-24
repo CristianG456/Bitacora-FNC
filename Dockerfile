@@ -21,7 +21,16 @@ COPY . .
 RUN rm -rf /var/www/public/build
 # El build de Vite siempre corresponde al mismo codigo de esta imagen.
 COPY --from=frontend /build/public/build /var/www/public/build
-RUN composer install --no-dev --optimize-autoloader --no-interaction \
+RUN mkdir -p /var/www/storage/app/private \
+      /var/www/storage/app/public \
+      /var/www/storage/app/backups \
+      /var/www/storage/framework/cache/data \
+      /var/www/storage/framework/sessions \
+      /var/www/storage/framework/testing \
+      /var/www/storage/framework/views \
+      /var/www/storage/logs \
+      /var/www/bootstrap/cache \
+ && composer install --no-dev --optimize-autoloader --no-interaction \
  && chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache \
  && chmod -R 775 /var/www/storage /var/www/bootstrap/cache
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh

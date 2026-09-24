@@ -22,6 +22,8 @@ class TipoProcesoController extends Controller
             'nombre' => 'required|string|max:255',
             'codigo' => 'required|string|max:3|unique:tipos_proceso,codigo',
             'descripcion' => 'nullable|string|max:500',
+            'ans_dias' => 'required|integer|min:1|max:3650',
+            'ans_tipo_dias' => 'required|in:calendario,habiles',
         ]);
 
         $tipo = TipoProceso::create([
@@ -29,6 +31,8 @@ class TipoProcesoController extends Controller
             'codigo' => strtoupper($request->codigo),
             'descripcion' => $request->descripcion,
             'activo' => true,
+            'ans_dias' => $request->integer('ans_dias'),
+            'ans_tipo_dias' => $request->input('ans_tipo_dias'),
         ]);
 
         Bitacora::registrar(
@@ -47,19 +51,35 @@ class TipoProcesoController extends Controller
             'nombre' => 'required|string|max:255',
             'codigo' => 'required|string|max:3|unique:tipos_proceso,codigo,' . $tipo->id,
             'descripcion' => 'nullable|string|max:500',
+            'ans_dias' => 'required|integer|min:1|max:3650',
+            'ans_tipo_dias' => 'required|in:calendario,habiles',
         ]);
+
+        $ansAnterior = [
+            'dias' => $tipo->ans_dias,
+            'tipo_dias' => $tipo->ans_tipo_dias,
+        ];
 
         $tipo->update([
             'nombre' => $request->nombre,
             'codigo' => strtoupper($request->codigo),
             'descripcion' => $request->descripcion,
+            'ans_dias' => $request->integer('ans_dias'),
+            'ans_tipo_dias' => $request->input('ans_tipo_dias'),
         ]);
 
         Bitacora::registrar(
             modulo: 'Tipos de Proceso',
             accion: 'Actualizar',
             descripcion: "El usuario ".Auth::user()->name." actualizó el tipo de documento '{$tipo->nombre}'.",
-            entidadId: $tipo->id
+            entidadId: $tipo->id,
+            metadata: [
+                'ans_anterior' => $ansAnterior,
+                'ans_nuevo' => [
+                    'dias' => $tipo->ans_dias,
+                    'tipo_dias' => $tipo->ans_tipo_dias,
+                ],
+            ],
         );
 
         return redirect()->route('tipos.index')->with('success', 'Tipo de documento actualizado correctamente.');

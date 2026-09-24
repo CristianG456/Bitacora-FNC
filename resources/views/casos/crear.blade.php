@@ -15,7 +15,7 @@
     <p class="text-gray-500 text-sm mt-1">Completa la información del caso jurídico</p>
 </div>
 
-<form method="POST" action="{{ route('casos.guardar') }}" class="space-y-6">
+<form id="create-case-form" method="POST" action="{{ route('casos.guardar') }}" class="space-y-6">
     @csrf
 
     @if ($errors->any())
@@ -47,7 +47,7 @@
             Información del Caso
         </h2>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 
             <div>
                 <label class="block text-xs font-semibold text-gray-900 mb-3">Tipo de Caso</label>
@@ -55,7 +55,7 @@
                     class="w-full px-4 py-3 border border-gray-300 rounded-md bg-gray-50 text-sm">
                     <option value="">Selecciona un tipo</option>
                     @foreach($tipos as $tipo)
-                        <option value="{{ $tipo->id }}">{{ $tipo->nombre }}</option>
+                        <option value="{{ $tipo->id }}" @selected((string) old('tipo_proceso_id') === (string) $tipo->id)>{{ $tipo->nombre }}</option>
                     @endforeach
                 </select>
             </div>
@@ -65,6 +65,9 @@
                 <select name="subtipo_proceso_id" id="subtipo_proceso_id" required
                     class="w-full px-4 py-3 border border-gray-300 rounded-md bg-gray-50 text-sm">
                     <option value="">Selecciona un subtipo</option>
+                    @foreach($tipos->firstWhere('id', (int) old('tipo_proceso_id'))?->subtipos ?? [] as $subtipo)
+                        <option value="{{ $subtipo->id }}" @selected((string) old('subtipo_proceso_id') === (string) $subtipo->id)>{{ $subtipo->nombre }}</option>
+                    @endforeach
                 </select>
             </div>
 
@@ -72,7 +75,7 @@
                 <label class="block text-xs font-semibold text-gray-900 mb-3">Descripción</label>
                 <textarea name="descripcion" required
                     placeholder="Describe brevemente el caso..."
-                    class="w-full px-4 py-3 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-gray-300 transition resize-none h-24"></textarea>
+                    class="w-full px-4 py-3 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-gray-300 transition resize-none h-24">{{ old('descripcion') }}</textarea>
             </div>
 
         </div>
@@ -87,22 +90,58 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
+            <div class="md:col-span-2">
+                <span class="block text-xs font-semibold text-gray-900 mb-3">Tipo de solicitante *</span>
+                <div class="flex flex-wrap gap-6">
+                    <label class="inline-flex items-center gap-2 text-sm text-gray-800">
+                        <input type="radio" name="tipo_solicitante" value="persona" @checked(old('tipo_solicitante', 'persona') === 'persona') required>
+                        Persona natural
+                    </label>
+                    <label class="inline-flex items-center gap-2 text-sm text-gray-800">
+                        <input type="radio" name="tipo_solicitante" value="empresa" @checked(old('tipo_solicitante') === 'empresa') required>
+                        Persona jurídica
+                    </label>
+                </div>
+                @error('tipo_solicitante')
+                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+
             <div>
-                <label class="block text-xs font-semibold text-gray-900 mb-3">Nombre del Solicitante</label>
-                <input type="text" name="nombre_solicitante" required
+                <label id="applicant-name-label" class="block text-xs font-semibold text-gray-900 mb-3">Nombre del Solicitante *</label>
+                <input type="text" name="nombre_solicitante" value="{{ old('nombre_solicitante') }}" required
                     placeholder="Nombre completo"
-                    pattern="[a-zA-Z\sñÑáéíóúÁÉÍÓÚ]+" title="Solo se permiten letras y espacios"
-                    oninput="this.value = this.value.replace(/[^a-zA-Z\sñÑáéíóúÁÉÍÓÚ]/g, '')"
                     class="w-full px-4 py-3 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-gray-300 transition">
             </div>
 
             <div>
-                <label class="block text-xs font-semibold text-gray-900 mb-3">Documento del Solicitante</label>
-                <input type="text" name="documento_solicitante" required
-                    placeholder="Número de documento"
-                    pattern="[0-9]+" title="Solo se permiten números"
-                    oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                <label class="block text-xs font-semibold text-gray-900 mb-3">Tipo de documento</label>
+                <select name="tipo_documento_solicitante_id" id="applicant-document-type"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-md bg-gray-50 text-sm">
+                    <option value="">Sin especificar</option>
+                </select>
+                @error('tipo_documento_solicitante_id')
+                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+
+            <div>
+                <label id="applicant-document-label" class="block text-xs font-semibold text-gray-900 mb-3">Documento del Solicitante</label>
+                <input type="text" name="documento_solicitante" value="{{ old('documento_solicitante') }}"
+                    id="applicant-document" placeholder="Número de documento opcional" maxlength="100"
                     class="w-full px-4 py-3 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-gray-300 transition">
+                @error('documento_solicitante')
+                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-900 mb-3">Día de solicitud</label>
+                <input type="date" name="fecha_solicitud" value="{{ old('fecha_solicitud') }}" required
+                    class="w-full px-4 py-3 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-gray-300 transition">
+                @error('fecha_solicitud')
+                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                @enderror
             </div>
 
         </div>
@@ -117,7 +156,7 @@
 
         <div>
             <label class="block text-xs font-semibold text-gray-900 mb-3">Link de Google Drive</label>
-            <input type="url" name="enlace_google_drive"
+            <input type="url" name="enlace_google_drive" value="{{ old('enlace_google_drive') }}"
                 placeholder="https://drive.google.com/..."
                 class="w-full px-4 py-3 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-gray-300 transition">
 
@@ -167,9 +206,9 @@
             Cancelar
         </a>
 
-        <button type="submit"
+        <button type="submit" id="create-case-button"
             class="w-full sm:w-auto px-6 py-3 bg-[#c84661] hover:bg-[#b53a52] text-white text-sm font-medium rounded-md transition">
-            Crear Caso
+            <span id="create-case-button-label">Crear Caso</span>
         </button>
 
     </div>
@@ -178,6 +217,34 @@
 
 <script>
 const tipos = @json($tipos);
+const tiposDocumento = @json($tiposDocumento);
+const oldAssignedUsers = @json($usuariosAnteriores);
+const oldTasks = @json(old('tareas', []));
+const oldTaskTypes = @json(old('tipos_tarea', []));
+const oldDocumentType = @json(old('tipo_documento_solicitante_id'));
+
+function updateApplicantLabels() {
+    const isCompany = document.querySelector('input[name="tipo_solicitante"]:checked')?.value === 'empresa';
+    const appliesTo = isCompany ? 'juridica' : 'natural';
+    const documentType = document.getElementById('applicant-document-type');
+    const selected = documentType.value || String(oldDocumentType || '');
+    documentType.innerHTML = '<option value="">Sin especificar</option>';
+    tiposDocumento.filter(tipo => tipo.aplica_a === appliesTo || tipo.aplica_a === 'ambos').forEach(tipo => {
+        const option = document.createElement('option');
+        option.value = tipo.id;
+        option.textContent = `${tipo.codigo} - ${tipo.nombre}`;
+        option.selected = String(tipo.id) === selected;
+        documentType.appendChild(option);
+    });
+    document.getElementById('applicant-name-label').textContent = isCompany ? 'Razón Social *' : 'Nombre del Solicitante *';
+    document.getElementById('applicant-document-label').textContent = isCompany ? 'Número de identificación / NIT' : 'Número de documento';
+    document.getElementById('applicant-document').placeholder = isCompany ? 'NIT opcional, por ejemplo 900123456-7' : 'Número de documento opcional';
+}
+
+document.querySelectorAll('input[name="tipo_solicitante"]').forEach(input => {
+    input.addEventListener('change', updateApplicantLabels);
+});
+updateApplicantLabels();
 
 document.getElementById('tipo_proceso_id').addEventListener('change', function () {
     const tipoId = this.value;
@@ -255,14 +322,16 @@ document.addEventListener('click', function(e) {
 });
 
 const addedUsers = new Set();
+const addedUserData = new Map();
 
-function addUser(user) {
+function addUser(user, restoredTasks = null, restoredTypes = null) {
     if (addedUsers.has(user.id)) {
         alert('Este usuario ya está asignado.');
         return;
     }
     
     addedUsers.add(user.id);
+    addedUserData.set(user.id, user);
     searchInput.value = '';
     resultsDropdown.classList.add('hidden');
     
@@ -293,6 +362,10 @@ function addUser(user) {
             <div id="tasks-container-${user.id}" class="space-y-3">
                 <div class="flex gap-2 items-start task-item">
                     <textarea name="tareas[${user.id}][]" rows="1" required placeholder="Describe la tarea..." class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 transition resize-none"></textarea>
+                    <select name="tipos_tarea[${user.id}][]" class="px-3 py-2 border border-gray-300 rounded-md bg-white text-sm">
+                        <option value="normal">Normal</option>
+                        ${user.role?.nombre === 'Abogado' ? '<option value="firma">Firma</option>' : ''}
+                    </select>
                     <button type="button" onclick="this.parentElement.remove()" class="mt-2 text-gray-400 hover:text-red-500">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
@@ -302,10 +375,18 @@ function addUser(user) {
     `;
     
     asignadosContainer.appendChild(userBlock);
+
+    const taskValues = Array.isArray(restoredTasks) && restoredTasks.length > 0 ? restoredTasks : [''];
+    const firstTask = userBlock.querySelector('textarea[name^="tareas"]');
+    firstTask.value = taskValues[0] ?? '';
+    const typeValues = Array.isArray(restoredTypes) ? restoredTypes : [];
+    userBlock.querySelector('select[name^="tipos_tarea"]').value = typeValues[0] ?? 'normal';
+    taskValues.slice(1).forEach((value, index) => addTask(user.id, value, typeValues[index + 1] ?? 'normal'));
 }
 
 function removeUser(userId) {
     addedUsers.delete(userId);
+    addedUserData.delete(userId);
     document.getElementById(`user-block-${userId}`).remove();
     
     if (addedUsers.size === 0) {
@@ -313,17 +394,38 @@ function removeUser(userId) {
     }
 }
 
-function addTask(userId) {
+function addTask(userId, value = '', type = 'normal') {
     const tasksContainer = document.getElementById(`tasks-container-${userId}`);
+    const user = addedUserData.get(userId);
     const taskDiv = document.createElement('div');
     taskDiv.className = 'flex gap-2 items-start task-item';
     taskDiv.innerHTML = `
         <textarea name="tareas[${userId}][]" rows="1" required placeholder="Describe la tarea..." class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 transition resize-none"></textarea>
+        <select name="tipos_tarea[${userId}][]" class="px-3 py-2 border border-gray-300 rounded-md bg-white text-sm">
+            <option value="normal">Normal</option>
+            ${user?.role?.nombre === 'Abogado' ? '<option value="firma">Firma</option>' : ''}
+        </select>
         <button type="button" onclick="this.parentElement.remove()" class="mt-2 text-gray-400 hover:text-red-500">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
         </button>
     `;
     tasksContainer.appendChild(taskDiv);
+    taskDiv.querySelector('textarea').value = value;
+    taskDiv.querySelector('select').value = type;
 }
+
+oldAssignedUsers.forEach(user => addUser(
+    user,
+    oldTasks[user.id] ?? oldTasks[String(user.id)] ?? [''],
+    oldTaskTypes[user.id] ?? oldTaskTypes[String(user.id)] ?? ['normal']
+));
+
+document.getElementById('create-case-form').addEventListener('submit', function () {
+    const button = document.getElementById('create-case-button');
+    if (button.disabled) return;
+    button.disabled = true;
+    button.classList.add('opacity-60', 'cursor-not-allowed');
+    document.getElementById('create-case-button-label').textContent = 'Creando...';
+});
 </script>
 @endsection

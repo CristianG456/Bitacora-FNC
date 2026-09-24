@@ -1,5 +1,24 @@
 .git
+.gitignore
 .env
+.env.*
+!.env.example
+
 vendor/
 node_modules/
 Cafe/
+test_env_audit/
+tests/
+phpunit.xml
+.phpunit.cache/
+
+# El runtime de Laravel vive en un volumen y debe comenzar limpio.
+storage/
+bootstrap/cache/*
+
+# Artefactos locales que nunca deben formar parte de una imagen.
+*.log
+*.sql
+*.zip
+*.tmp
+*.temp
