@@ -89,6 +89,7 @@ class PilotImprovementsTest extends TestCase
         $juridica = $this->user('Juridica', 'Sara');
         $consultor = $this->user('Consultor', 'Consultor');
         $asignado = $this->user('Usuario', 'Asignado');
+        $noAsignado = $this->user('Usuario', 'No asignado');
         $caso = $this->caso($juridica, [$asignado]);
         $tarea = $caso->tareas()->create([
             'user_id' => $asignado->id,
@@ -103,9 +104,20 @@ class PilotImprovementsTest extends TestCase
             ->assertDontSee('Finalizar Tarea');
 
         $this->actingAs($consultor)->post(route('casos.usuarios.asignar', $caso), ['user_id' => $consultor->id])->assertForbidden();
+        $this->actingAs($consultor)->post(route('tareas.guardar', $caso), [
+            'user_id' => $consultor->id,
+            'descripcion' => 'Intento de tarea del Consultor',
+            'tipo_accion' => 'normal',
+        ])->assertForbidden();
+        $this->actingAs($noAsignado)->post(route('tareas.guardar', $caso), [
+            'user_id' => $noAsignado->id,
+            'descripcion' => 'Intento de tarea sin asignación',
+            'tipo_accion' => 'normal',
+        ])->assertForbidden();
         $this->actingAs($consultor)->post(route('tareas.completar', [$caso, $tarea]), ['observacion' => 'Intento inválido'])->assertForbidden();
         $this->actingAs($consultor)->delete(route('tareas.eliminar', [$caso, $tarea]))->assertForbidden();
         $this->actingAs($consultor)->patch('/casos/'.$caso->id, ['estado' => 'Finalizado'])->assertStatus(405);
+        $this->assertDatabaseCount('tareas', 1);
     }
 
     public function test_juridica_cannot_finalize_case_without_assigned_users(): void
@@ -557,9 +569,9 @@ class PilotImprovementsTest extends TestCase
 
         $this->actingAs($externo)->getJson(route('casos.mensajes.json', $caso))->assertForbidden();
         $this->actingAs($consultor)->postJson(route('casos.mensajes', $caso), [
-            'mensaje' => 'Consultor no escribe',
-        ])->assertForbidden();
-        $this->assertDatabaseCount('mensajes', 0);
+            'mensaje' => 'Consultor participa en el chat general',
+        ])->assertOk();
+        $this->assertDatabaseCount('mensajes', 1);
     }
 
     public function test_notifications_endpoint_updates_counter_and_mark_read_clears_it(): void
@@ -1074,5 +1086,271 @@ class PilotImprovementsTest extends TestCase
             Notificacion::count(),
             Tarea::count(),
         ]);
+    }
+
+    public function test_header_deep_links_cover_password_recovery_and_exact_pending_task(): void
+    {
+        $admin = $this->user('Administrador', 'Admin');
+        $juridica = $this->user('Juridica', 'Sara');
+        $caso = $this->caso($juridica, [$juridica]);
+        $tarea = $caso->tareas()->create([
+            'user_id' => $juridica->id,
+            'descripcion' => 'Revisión histórica enlazada desde el encabezado',
+            'estado' => 'Pendiente',
+        ]);
+        Notificacion::enviar(
+            $admin->id,
+            'Solicitud de recuperación de contraseña',
+            'Revisar solicitud en Usuarios.',
+            'warning'
+        );
+
+        $this->actingAs($admin)->getJson(route('notificaciones.recientes'))
+            ->assertOk()
+            ->assertJsonPath('notificaciones.0.url', route('usuarios.index', [], false));
+
+        $this->actingAs($juridica)->getJson(route('notificaciones.recientes'))
+            ->assertOk()
+            ->assertJsonPath('tareas.0.url', route('casos.show', $caso, false).'#tarea-'.$tarea->id)
+            ->assertJsonPath('tareasPendientes', 1);
+    }
+
+    public function test_header_dropdowns_close_without_marking_every_notification_read(): void
+    {
+        $juridica = $this->user('Juridica', 'Sara');
+        $alerta = Notificacion::enviar($juridica->id, 'Alerta pendiente', 'Debe seguir sin leer.', 'info');
+
+        $this->actingAs($juridica)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('function closeHeaderDropdowns()', false)
+            ->assertSee("event.key === 'Escape'", false)
+            ->assertSee("event.target.closest('.header-indicator-container')", false)
+            ->assertSee('id="notif-dropdown" class="header-indicator-dropdown hidden', false)
+            ->assertSee("toggleHeaderDropdown('notif-dropdown')", false)
+            ->assertDontSee("toggleHeaderDropdown('notif-dropdown', true)", false);
+
+        $this->assertFalse($alerta->refresh()->leido);
+    }
+
+    public function test_consultor_can_send_general_and_authorized_direct_messages_with_existing_privacy(): void
+    {
+        $juridica = $this->user('Juridica', 'Sara');
+        $consultor = $this->user('Consultor', 'María Consultora');
+        $usuario = $this->user('Usuario', 'Davit');
+        $tercero = $this->user('Usuario', 'Fuera del caso');
+        $caso = $this->caso($juridica, [$juridica, $usuario]);
+
+        $this->actingAs($consultor)->get(route('casos.show', $caso))
+            ->assertOk()
+            ->assertSee('id="form-chat"', false)
+            ->assertDontSee('puede leer mensajes, pero no enviarlos');
+
+        $this->actingAs($consultor)->postJson(route('casos.mensajes', $caso), [
+            'mensaje' => 'Mensaje de seguimiento del Consultor.',
+        ])->assertOk()->assertJsonPath('mensaje.mensaje', 'Mensaje de seguimiento del Consultor.');
+
+        $general = Mensaje::where('user_id', $consultor->id)->whereNull('destinatario_id')->firstOrFail();
+        $this->assertTrue(Notificacion::where('user_id', $usuario->id)->where('mensaje_id', $general->id)->exists());
+
+        $this->actingAs($consultor)->postJson(route('casos.mensajes', $caso), [
+            'mensaje' => 'Mensaje directo autorizado.',
+            'destinatario_id' => $usuario->id,
+        ])->assertOk()->assertJsonPath('mensaje.destinatarioId', $usuario->id);
+        $directo = Mensaje::where('user_id', $consultor->id)->where('destinatario_id', $usuario->id)->firstOrFail();
+        $this->assertTrue(Notificacion::where('user_id', $usuario->id)->where('mensaje_id', $directo->id)->exists());
+
+        $entreTerceros = $caso->mensajes()->create([
+            'user_id' => $juridica->id,
+            'destinatario_id' => $usuario->id,
+            'mensaje' => 'Privado entre terceros',
+            'created_at' => now(),
+        ]);
+        $this->actingAs($consultor)->getJson(route('casos.mensajes.json', [
+            'caso' => $caso,
+            'chat' => 'directo',
+            'usuario' => $usuario->id,
+        ]))->assertOk()->assertJsonMissing(['id' => $entreTerceros->id]);
+
+        $this->actingAs($consultor)->postJson(route('casos.mensajes', $caso), [
+            'mensaje' => 'Intento a usuario no relacionado',
+            'destinatario_id' => $tercero->id,
+        ])->assertForbidden();
+    }
+
+    public function test_consultor_annotation_is_immutable_audit_context_and_does_not_change_case_flow(): void
+    {
+        $juridica = $this->user('Juridica', 'Sara');
+        $consultor = $this->user('Consultor', 'María Consultora');
+        $usuario = $this->user('Usuario', 'Davit');
+        $caso = $this->caso($juridica, [$usuario]);
+        $caso->update(['ans_estado' => 'vencido', 'ans_fecha_limite' => '2026-09-20']);
+        $tarea = $caso->tareas()->create([
+            'user_id' => $usuario->id,
+            'descripcion' => 'Tarea que no debe cambiar por una anotación',
+            'estado' => 'Pendiente',
+        ]);
+        $antes = [$caso->estado, $caso->ans_estado, $caso->ans_fecha_limite?->toDateString(), Tarea::count()];
+
+        $this->actingAs($consultor)->post(route('casos.anotaciones-seguimiento', $caso), [
+            'anotacion' => 'Anotación de seguimiento del Consultor.',
+        ])->assertRedirect(route('casos.show', $caso));
+
+        $evento = \App\Models\Bitacora::where('caso_id', $caso->id)
+            ->where('accion', 'Anotación de Consultor')->firstOrFail();
+        $this->assertSame($consultor->id, $evento->user_id);
+        $this->assertSame('Consultor', $evento->metadata['rol']);
+        $this->assertSame('Anotación de seguimiento del Consultor.', $evento->metadata['anotacion']);
+        $this->assertNotEmpty($evento->metadata['fecha_bogota']);
+        $this->assertSame($antes, [
+            $caso->fresh()->estado,
+            $caso->fresh()->ans_estado,
+            $caso->fresh()->ans_fecha_limite?->toDateString(),
+            Tarea::count(),
+        ]);
+        $this->assertSame('Pendiente', $tarea->fresh()->estado);
+
+        $this->actingAs($usuario)->post(route('casos.anotaciones-seguimiento', $caso), [
+            'anotacion' => 'Intento no autorizado de anotación.',
+        ])->assertForbidden();
+    }
+
+    public function test_historical_case_allows_juridica_to_self_assign_and_complete_normal_flow(): void
+    {
+        $juridica = $this->user('Juridica', 'Cristian Jurídica');
+        $caso = $this->caso($juridica, [], null);
+
+        $this->actingAs($juridica)->get(route('casos.show', $caso))
+            ->assertOk()
+            ->assertSee('Autoasignarme')
+            ->assertSee('Primero agrega un responsable activo o usa Autoasignarme.');
+
+        $this->actingAs($juridica)->post(route('casos.usuarios.asignar', $caso), [
+            'user_id' => $juridica->id,
+        ])->assertRedirect();
+        $this->assertDatabaseHas('caso_usuario', [
+            'caso_id' => $caso->id,
+            'user_id' => $juridica->id,
+            'activo' => true,
+            'estado' => 'Pendiente',
+        ]);
+
+        $this->actingAs($juridica)->post(route('tareas.guardar', $caso), [
+            'user_id' => $juridica->id,
+            'descripcion' => 'Revisión realizada sobre caso histórico',
+            'tipo_accion' => 'normal',
+        ])->assertRedirect();
+        $tarea = $caso->tareas()->firstOrFail();
+        $this->assertSame('normal', $tarea->tipo_accion);
+
+        $this->actingAs($juridica)->post(route('tareas.completar', [$caso, $tarea]), [
+            'observacion' => 'Revisión jurídica completada',
+        ])->assertRedirect();
+        $this->assertTrue($caso->fresh()->puedeFinalizarse());
+        $this->actingAs($juridica)->get(route('casos.show', $caso))
+            ->assertOk()
+            ->assertSee('Progreso: 100% (1/1 completados)');
+
+        $this->actingAs($juridica)->post(route('casos.finalizar', $caso))->assertRedirect();
+        $this->assertSame('Finalizado', $caso->fresh()->estado);
+        $this->assertDatabaseHas('bitacoras', ['caso_id' => $caso->id, 'accion' => 'Asignacion']);
+        $this->assertDatabaseHas('bitacoras', ['caso_id' => $caso->id, 'accion' => 'Crear']);
+        $this->assertDatabaseHas('bitacoras', ['caso_id' => $caso->id, 'accion' => 'Completar']);
+        $this->assertDatabaseHas('bitacoras', ['caso_id' => $caso->id, 'accion' => 'Cambio de Estado']);
+    }
+
+    public function test_historical_inactive_juridica_assignment_is_reactivated_without_duplicates(): void
+    {
+        $juridica = $this->user('Juridica', 'Sara Jurídica');
+        $caso = $this->caso($juridica, [$juridica], null);
+        $caso->usuarios()->updateExistingPivot($juridica->id, [
+            'activo' => false,
+            'estado' => 'Finalizado',
+            'fecha_finalizacion' => now(),
+            'motivo_salida' => 'Asignación histórica cerrada',
+        ]);
+
+        $this->actingAs($juridica)->post(route('casos.usuarios.asignar', $caso), [
+            'user_id' => $juridica->id,
+        ])->assertRedirect();
+
+        $this->assertDatabaseCount('caso_usuario', 1);
+        $this->assertDatabaseHas('caso_usuario', [
+            'caso_id' => $caso->id,
+            'user_id' => $juridica->id,
+            'activo' => true,
+            'estado' => 'Pendiente',
+            'fecha_finalizacion' => null,
+            'motivo_salida' => null,
+        ]);
+    }
+
+    public function test_historical_inactive_assignments_do_not_block_but_active_pending_tasks_do(): void
+    {
+        $juridica = $this->user('Juridica', 'Sara');
+        $activo = $this->user('Usuario', 'Responsable activo');
+        $inactivo = $this->user('Usuario', 'Responsable retirado');
+        $caso = $this->caso($juridica, [$activo, $inactivo], null);
+        $caso->usuarios()->updateExistingPivot($inactivo->id, ['activo' => false]);
+        $tareaActiva = $caso->tareas()->create([
+            'user_id' => $activo->id,
+            'descripcion' => 'Pendiente del responsable activo',
+            'estado' => 'Pendiente',
+        ]);
+        $caso->tareas()->create([
+            'user_id' => $inactivo->id,
+            'descripcion' => 'Pendiente histórica del retirado',
+            'estado' => 'Pendiente',
+        ]);
+
+        $this->actingAs($juridica)->post(route('casos.usuarios.asignar', $caso), [
+            'user_id' => $juridica->id,
+        ])->assertRedirect();
+        $this->actingAs($juridica)->post(route('tareas.guardar', $caso), [
+            'user_id' => $juridica->id,
+            'descripcion' => 'Tarea propia de Jurídica',
+            'tipo_accion' => 'normal',
+        ])->assertRedirect();
+        $tareaJuridica = $caso->tareas()->where('user_id', $juridica->id)->firstOrFail();
+        $this->actingAs($juridica)->post(route('tareas.completar', [$caso, $tareaJuridica]), [
+            'observacion' => 'Trabajo propio completado',
+        ])->assertRedirect();
+
+        $this->actingAs($juridica)->post(route('casos.finalizar', $caso))
+            ->assertSessionHas('error');
+        $tareaActiva->update(['estado' => 'Completada']);
+        $caso->usuarios()->updateExistingPivot($activo->id, ['estado' => 'Finalizado']);
+        $this->assertTrue($caso->fresh()->puedeFinalizarse());
+    }
+
+    public function test_dashboard_cards_filter_recent_cases_and_keep_role_scope(): void
+    {
+        $juridica = $this->user('Juridica', 'Sara');
+        $consultor = $this->user('Consultor', 'Consultora');
+        $usuario = $this->user('Usuario', 'Responsable');
+        $pendiente = $this->caso($juridica, [$usuario]);
+        $pendiente->update(['radicado' => 'DASH-PENDIENTE', 'estado' => 'Pendiente']);
+        $proceso = $this->caso($juridica, [$usuario]);
+        $proceso->update(['radicado' => 'DASH-PROCESO', 'estado' => 'En proceso']);
+        $finalizado = $this->caso($juridica, []);
+        $finalizado->update(['radicado' => 'DASH-FINALIZADO', 'estado' => 'Finalizado']);
+
+        $this->actingAs($consultor)->get(route('dashboard'))
+            ->assertOk()->assertSee('dashboard-filter-card', false)
+            ->assertSee('aria-pressed="true"', false)
+            ->assertSee('DASH-PENDIENTE')->assertSee('DASH-PROCESO')->assertSee('DASH-FINALIZADO');
+        $this->actingAs($consultor)->get(route('dashboard', ['estado_dashboard' => 'pendientes']))
+            ->assertOk()->assertSee('Casos pendientes recientes')->assertSee('DASH-PENDIENTE')
+            ->assertDontSee('DASH-PROCESO')->assertDontSee('DASH-FINALIZADO');
+        $this->actingAs($consultor)->get(route('dashboard', ['estado_dashboard' => 'en_proceso']))
+            ->assertOk()->assertSee('DASH-PROCESO')->assertDontSee('DASH-PENDIENTE')->assertDontSee('DASH-FINALIZADO');
+        $this->actingAs($consultor)->get(route('dashboard', ['estado_dashboard' => 'finalizados']))
+            ->assertOk()->assertSee('DASH-FINALIZADO')->assertDontSee('DASH-PENDIENTE')->assertDontSee('DASH-PROCESO');
+
+        $this->actingAs($usuario)->get(route('dashboard', ['estado_dashboard' => 'pendientes']))
+            ->assertOk()->assertSee('DASH-PENDIENTE')->assertDontSee('DASH-FINALIZADO');
+        $this->actingAs($usuario)->get(route('dashboard', ['estado_dashboard' => 'desconocido']))
+            ->assertOk()->assertSee('DASH-PENDIENTE')->assertSee('DASH-PROCESO')->assertDontSee('DASH-FINALIZADO');
+        $this->actingAs($usuario)->get(route('dashboard', ['estado_dashboard' => ['valor-invalido']]))
+            ->assertOk()->assertSee('DASH-PENDIENTE')->assertSee('DASH-PROCESO');
     }
 }

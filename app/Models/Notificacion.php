@@ -2,9 +2,10 @@
 
 namespace App\Models;
 
+use App\Jobs\SendWebPushNotification;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
-use App\Models\User;
 
 class Notificacion extends Model
 {
@@ -26,7 +27,7 @@ class Notificacion extends Model
     ];
 
     protected $casts = [
-        'leido'      => 'boolean',
+        'leido' => 'boolean',
         'created_at' => 'datetime',
     ];
 
@@ -60,7 +61,7 @@ class Notificacion extends Model
     // ─── Helper: crear notificación desde cualquier parte ──────────
 
     public static function enviar(
-        int    $userId,
+        int $userId,
         string $titulo,
         string $mensaje,
         string $tipo = 'info',
@@ -70,19 +71,21 @@ class Notificacion extends Model
         ?int $solicitudCorreccionId = null,
     ): self {
         $notificacion = self::create([
-            'user_id'    => $userId,
-            'caso_id'    => $casoId,
-            'tarea_id'   => $tareaId,
+            'user_id' => $userId,
+            'caso_id' => $casoId,
+            'tarea_id' => $tareaId,
             'solicitud_correccion_id' => $solicitudCorreccionId,
             'mensaje_id' => $mensajeId,
-            'tipo'       => $tipo,
-            'titulo'     => $titulo,
-            'mensaje'    => $mensaje,
-            'leido'      => false,
+            'tipo' => $tipo,
+            'titulo' => $titulo,
+            'mensaje' => $mensaje,
+            'leido' => false,
             'created_at' => now(),
         ]);
 
-        \Illuminate\Support\Facades\DB::afterCommit(function () use ($userId, $titulo, $mensaje) {
+        DB::afterCommit(function () use ($notificacion, $userId, $titulo, $mensaje) {
+            SendWebPushNotification::dispatch($notificacion->id);
+
             try {
                 $user = User::find($userId);
                 if ($user && $user->email) {

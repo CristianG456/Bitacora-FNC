@@ -1,0 +1,13 @@
+{
+    "name": "Sistema de Gestión de Casos Jurídicos",
+    "short_name": "Sistema Jurídico",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "theme_color": "#b11226",
+    "background_color": "#f1f5f9",
+    "icons": [
+        { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+        { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    ]
+}

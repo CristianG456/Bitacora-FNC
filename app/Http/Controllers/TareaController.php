@@ -70,7 +70,9 @@ class TareaController extends Controller
                 'Nueva tarea asignada',
                 "Se te asignó la tarea: \"{$tarea->descripcion}\" en el caso {$caso->radicado}.",
                 'tarea',
-                $caso->id
+                $caso->id,
+                null,
+                $tarea->id
             );
 
             // Obtener el nombre del usuario asignado

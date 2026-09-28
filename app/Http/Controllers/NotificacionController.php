@@ -106,7 +106,9 @@ class NotificacionController extends Controller
                 'descripcion' => $tarea->descripcion,
                 'estado' => $tarea->estado,
                 'caso' => $tarea->caso?->radicado,
-                'url' => $tarea->caso ? route('casos.show', $tarea->caso, false) : null,
+                'url' => $tarea->caso
+                    ? route('casos.show', $tarea->caso, false).'#tarea-'.$tarea->id
+                    : null,
             ]);
 
         $sinLeer = (clone $generalesQuery)->where('leido', false)->count();
@@ -147,10 +149,21 @@ class NotificacionController extends Controller
                 $fragmento = $notificacion->tarea_id
                     ? '#tarea-'.$notificacion->tarea_id
                     : '#mis-tareas';
-                $url = route('casos.show', $notificacion->caso_id, false).$fragmento;
+                $parametros = $notificacion->tipo === 'correccion_tarea'
+                    && $notificacion->solicitud_correccion_id
+                        ? '?'.http_build_query([
+                            'solicitud_correccion' => $notificacion->solicitud_correccion_id,
+                        ])
+                        : '';
+                $url = route('casos.show', $notificacion->caso_id, false).$parametros.$fragmento;
             } else {
                 $url = route('casos.show', $notificacion->caso_id, false);
             }
+        } elseif (
+            $notificacion->tipo === 'recuperacion_password'
+            || str_contains(mb_strtolower($notificacion->titulo ?? ''), 'recuperación de contraseña')
+        ) {
+            $url = route('usuarios.index', [], false);
         }
 
         return [

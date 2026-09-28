@@ -18,12 +18,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="web-push-vapid-key" content="{{ config('webpush.vapid.public_key') }}">
+    <meta name="theme-color" content="#b11226">
     <script>window.userId = @json(auth()->id());</script>
     @vite(['resources/js/app.js'])
     <title>@yield('title', 'Sistema de Gestión de Casos Jurídicos')</title>
     <meta name="description" content="Sistema de Gestión de Casos Jurídicos - Federación Nacional de Cafeteros">
     
     <link rel="icon" href="{{ asset('imagenes/federacion cafeteros logo.png') }}" type="image/png">
+    <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
+    <link rel="apple-touch-icon" href="{{ asset('icons/icon-192.png') }}">
 
     {{-- Tailwind CDN (ya está en el proyecto) --}}
     <script src="https://cdn.tailwindcss.com"></script>
@@ -36,6 +40,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ filemtime(public_path('css/app.css')) }}">
+    <link rel="stylesheet" href="{{ asset('css/pwa.css') }}?v={{ filemtime(public_path('css/pwa.css')) }}">
     
     {{-- SweetAlert2 --}}
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -43,7 +48,29 @@
     @stack('styles')
 </head>
 
-<body>
+<body class="push-gate-pending">
+<div id="push-requirement-gate" class="push-gate" role="dialog" aria-modal="true" aria-labelledby="push-gate-title" data-store-url="{{ route('push-subscriptions.store', [], false) }}">
+    <section class="push-gate__card">
+        <div data-push-state="default">
+            <div class="push-gate__icon" aria-hidden="true">🔔</div>
+            <h1 id="push-gate-title">Notificaciones obligatorias</h1>
+            <p>Para utilizar el Sistema de Gestión de Casos Jurídicos debes habilitar las notificaciones de este dispositivo.</p>
+            <ul><li>Nuevas tareas</li><li>Mensajes</li><li>Solicitudes de corrección</li><li>Alertas ANS</li><li>Cambios importantes de tus casos</li></ul>
+            <div class="push-gate__actions"><button type="button" class="push-gate__primary" data-enable-notifications>Activar notificaciones</button></div>
+        </div>
+        <div data-push-state="denied" hidden>
+            <div class="push-gate__icon" aria-hidden="true">🔕</div><h1>Notificaciones bloqueadas</h1>
+            <p>Tu navegador tiene bloqueadas las notificaciones necesarias para utilizar el Sistema Jurídico. Habilítalas en la configuración del sitio.</p>
+            <p class="push-gate__help" data-browser-help hidden></p>
+            <div class="push-gate__actions"><button type="button" class="push-gate__secondary" data-show-help>Cómo activarlas</button><button type="button" class="push-gate__primary" data-recheck-notifications>Volver a comprobar</button></div>
+        </div>
+        <div data-push-state="ios-install" hidden><div class="push-gate__icon" aria-hidden="true">📲</div><h1>Instala el Sistema Jurídico</h1><p>En iPhone y iPad, las notificaciones web requieren abrir el sistema como aplicación instalada. Usa Compartir → Añadir a pantalla de inicio y abre la aplicación desde allí.</p><div class="push-gate__actions"><button type="button" class="push-gate__primary" data-recheck-notifications>Volver a comprobar</button></div></div>
+        <div data-push-state="unsupported" hidden><div class="push-gate__icon" aria-hidden="true">⚠️</div><h1>Navegador no compatible</h1><p>Este navegador no es compatible con las notificaciones requeridas por el Sistema Jurídico. Utiliza una versión actual de Chrome, Edge, Firefox o una plataforma compatible.</p></div>
+        <div data-push-state="offline" hidden><div class="push-gate__icon" aria-hidden="true">📡</div><h1>Sin conexión a Internet</h1><p>Reconéctate para utilizar el Sistema Jurídico. Los expedientes no se almacenan para uso sin conexión.</p></div>
+        <div data-push-state="working" hidden aria-live="polite"><div class="push-gate__icon" aria-hidden="true">🔔</div><h1>Activando notificaciones</h1><p data-push-status>Verificando este dispositivo…</p></div>
+        <div data-push-state="error" hidden><div class="push-gate__icon" aria-hidden="true">⚠️</div><h1>No fue posible activar las notificaciones</h1><p data-push-status></p><div class="push-gate__actions"><button type="button" class="push-gate__primary" data-recheck-notifications>Volver a comprobar</button></div></div>
+    </section>
+</div>
 
 {{-- SIDEBAR --}}
 <aside class="sidebar transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-40 fixed">
@@ -84,6 +111,13 @@
 
         @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor', 'Abogado']))
         <span class="nav-section-title">Gestión</span>
+        @endif
+
+        @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Consultor']))
+        <a href="{{ route('seguimiento.index') }}" class="nav-item {{ request()->routeIs('seguimiento.*') ? 'active' : '' }}">
+            <i data-lucide="chart-no-axes-combined" style="width:18px;height:18px;"></i>
+            Seguimiento y Reportes
+        </a>
         @endif
 
         @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Juridica']))
@@ -163,7 +197,7 @@
                 </div>
 
                 <!-- Menú desplegable -->
-                <div id="notif-dropdown" class="hidden absolute right-0 mt-2 w-80 max-w-[90vw] md:max-w-sm bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
+                <div id="notif-dropdown" class="header-indicator-dropdown hidden absolute right-0 mt-2 w-80 max-w-[90vw] md:max-w-sm bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
                     <div class="p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                         <h3 class="font-bold text-sm text-gray-800">Notificaciones</h3>
                         <form id="notif-mark-read-form" data-mark-read-form action="{{ route('notificaciones.marcar_leidas') }}" method="POST" class="{{ $sinLeer > 0 ? '' : 'hidden' }}">
@@ -235,6 +269,7 @@
             {{-- Cerrar sesión --}}
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
+                <input type="hidden" name="push_endpoint" data-push-endpoint>
                 <button type="submit" class="btn-logout" title="Cerrar sesión">
                     <i data-lucide="log-out" style="width:16px;height:16px;"></i>
                 </button>
@@ -303,6 +338,13 @@
             </a>
             @endif
 
+            @if(auth()->user()?->tieneAlgunRol(['Administrador', 'Consultor']))
+            <a href="{{ route('seguimiento.index') }}" class="drawer-nav-item {{ request()->routeIs('seguimiento.*') ? 'active' : '' }}">
+                <i data-lucide="chart-no-axes-combined" aria-hidden="true"></i>
+                Seguimiento y Reportes
+            </a>
+            @endif
+
             @if(auth()->user()?->tieneAlgunRol(['Administrador']))
             <span class="nav-section-title">Sistema</span>
             <a href="{{ route('respaldos.index') }}" class="drawer-nav-item {{ request()->routeIs('respaldos.*') ? 'active' : '' }}">
@@ -351,11 +393,14 @@
     }
 
     document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape') closeMobileDrawer();
+        if (event.key === 'Escape') {
+            closeMobileDrawer();
+            closeHeaderDropdowns();
+        }
     });
 
     function toggleNotificaciones() {
-        toggleHeaderDropdown('notif-dropdown', true);
+        toggleHeaderDropdown('notif-dropdown');
     }
 
     function toggleMensajesHeader() {
@@ -366,18 +411,18 @@
         toggleHeaderDropdown('task-dropdown');
     }
 
-    async function toggleHeaderDropdown(dropdownId, marcarGenerales = false) {
+    function closeHeaderDropdowns() {
+        document.querySelectorAll('.header-indicator-dropdown').forEach(item => item.classList.add('hidden'));
+    }
+
+    async function toggleHeaderDropdown(dropdownId) {
         const dropdown = document.getElementById(dropdownId);
         if (!dropdown) return;
         const shouldOpen = dropdown.classList.contains('hidden');
-        document.querySelectorAll('.header-indicator-dropdown').forEach(item => item.classList.add('hidden'));
+        closeHeaderDropdowns();
         dropdown.classList.toggle('hidden', !shouldOpen);
         if (shouldOpen) {
-            const data = await cargarNotificaciones();
-            if (marcarGenerales) {
-                const ids = (data?.notificaciones ?? []).filter(item => !item.leido).map(item => item.id);
-                if (ids.length > 0) await marcarNotificacionesLeidas('general', ids);
-            }
+            await cargarNotificaciones();
         }
     }
 
@@ -581,9 +626,7 @@
     // Cerrar al hacer clic fuera
     document.addEventListener('click', function(event) {
         if (!event.target.closest('.header-indicator-container')) {
-            document.querySelectorAll('.header-indicator-dropdown').forEach(dropdown => {
-                dropdown.classList.add('hidden');
-            });
+            closeHeaderDropdowns();
         }
     });
 
@@ -661,6 +704,12 @@
 <template id="initial-module-scripts">
     @stack('scripts')
 </template>
+
+<div id="pwa-install-banner" class="pwa-install-banner" role="status" hidden>
+    <strong>📲 Instala el Sistema Jurídico</strong>
+    <p>Instala la aplicación para acceder más rápido y recibir una experiencia integrada.</p>
+    <button type="button" data-install-pwa>Instalar</button>
+</div>
 
 @include('layouts.shell-navigation')
 

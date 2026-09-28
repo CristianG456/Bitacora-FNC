@@ -1,0 +1,19 @@
+body.push-gate-pending > :not(#push-requirement-gate),
+body.push-gate-blocked > :not(#push-requirement-gate) { visibility: hidden !important; }
+.push-gate[hidden], .pwa-install-banner[hidden], [data-push-state][hidden], [data-browser-help][hidden] { display: none !important; }
+.push-gate { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; padding: 1rem; background: #f1f5f9; color: #111827; visibility: visible !important; }
+.push-gate__card { width: min(100%, 36rem); background: #fff; border-radius: 1rem; box-shadow: 0 24px 60px rgba(17, 24, 39, .18); padding: clamp(1.5rem, 5vw, 2.5rem); text-align: center; border-top: .4rem solid #b11226; }
+.push-gate__icon { display: grid; place-items: center; width: 4rem; height: 4rem; margin: 0 auto 1rem; border-radius: 999px; background: #f9e6e9; color: #b11226; font-size: 2rem; }
+.push-gate h1 { margin: 0 0 .75rem; font-size: clamp(1.4rem, 4vw, 1.9rem); }
+.push-gate p { color: #4b5563; line-height: 1.6; }
+.push-gate ul { width: fit-content; margin: 1rem auto; padding-left: 1.4rem; text-align: left; color: #374151; line-height: 1.7; }
+.push-gate__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .75rem; margin-top: 1.25rem; }
+.push-gate button, .pwa-install-banner button { min-height: 3rem; border: 0; border-radius: .65rem; padding: .75rem 1.15rem; font: inherit; font-weight: 700; cursor: pointer; }
+.push-gate__primary, .pwa-install-banner button { background: #b11226; color: #fff; }
+.push-gate__secondary { background: #e5e7eb; color: #111827; }
+.push-gate button:focus-visible, .pwa-install-banner button:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+.push-gate__help { padding: 1rem; border-radius: .65rem; background: #f8fafc; text-align: left; }
+.pwa-install-banner { position: fixed; z-index: 9000; right: 1rem; bottom: 1rem; width: min(25rem, calc(100% - 2rem)); padding: 1rem; border-radius: .8rem; background: #fff; box-shadow: 0 12px 35px rgba(17,24,39,.2); border-left: .3rem solid #b11226; }
+.pwa-install-banner strong { display: block; margin-bottom: .25rem; }
+.pwa-install-banner p { margin: 0 0 .75rem; color: #4b5563; font-size: .9rem; }
+@media (max-width: 480px) { .push-gate__actions { flex-direction: column; } .push-gate button { width: 100%; } }

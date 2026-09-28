@@ -29,6 +29,18 @@
     position: relative;
     overflow: hidden;
     color: white;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.dashboard-filter-card:focus-visible {
+    outline: 3px solid rgba(177, 18, 38, 0.35);
+    outline-offset: 3px;
+}
+
+.dashboard-filter-card.is-active {
+    transform: translateY(-3px);
+    box-shadow: 0 0 0 4px rgba(177, 18, 38, 0.18), 0 18px 34px -10px rgba(17, 24, 39, 0.38);
 }
 
 /* Original Asymmetric Shapes (Leaf/Droplet style) */
@@ -166,6 +178,23 @@
     font-weight: 700;
     color: #111827;
     margin: 0;
+}
+
+.dashboard-filter-caption {
+    margin: 4px 0 0;
+    color: #9ca3af;
+    font-size: 12px;
+}
+
+.dashboard-clear-filter {
+    color: #9f1024;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.dashboard-clear-filter:hover {
+    text-decoration: underline;
 }
 
 .btn-create-sm {

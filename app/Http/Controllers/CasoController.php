@@ -70,6 +70,7 @@ class CasoController extends Controller
         $puedeCompletarPropias = !$esConsultor
             && $usuarioAsignado
             && (bool) $usuarioAsignado->pivot->activo;
+        $puedeEnviarMensajes = $user->esConsultor() || !$esConsultor;
 
         // Autorización
         if (!$puedeVerTodos) {
@@ -102,11 +103,11 @@ class CasoController extends Controller
 
         $caso->load([
             'tipo', 'subtipo', 'solicitante.tipoDocumento', 'solicitanteTipoDocumento', 'creador',
-            'usuarios' => fn($q) => $q->wherePivot('activo', true),
+            'usuarios' => fn($q) => $q->wherePivot('activo', true)->with('role'),
             'tareas.usuario',
             'tareas.solicitudesCorreccion' => fn($q) => $q->with(['solicitante', 'revisora'])->latest(),
             'tareas.versiones.correctora',
-            'bitacoras' => fn($q) => $q->with('usuario')->latest(),
+            'bitacoras' => fn($q) => $q->with('usuario.role')->latest(),
             'mensajes' => fn($q) => $q
                 ->with(['autor', 'destinatario'])
                 ->where(function ($mensajes) use ($user) {
@@ -152,6 +153,7 @@ class CasoController extends Controller
             'esConsultor',
             'destinatariosChat',
             'puedeCompletarPropias',
+            'puedeEnviarMensajes',
             'tipoChat',
             'interlocutorId',
             'mensajesChat',
@@ -254,7 +256,7 @@ class CasoController extends Controller
                                     'tipos_tarea.'.$userId => 'Las tareas de firma solo pueden asignarse a usuarios con rol Abogado.',
                                 ]);
                             }
-                            $caso->tareas()->create([
+                            $tareaCreada = $caso->tareas()->create([
                                 'user_id'     => $userId,
                                 'descripcion' => $descTarea,
                                 'tipo_accion' => $tipoAccion,
@@ -266,7 +268,9 @@ class CasoController extends Controller
                                 'Nueva tarea asignada',
                                 "Tienes una tarea pendiente en el caso {$radicado}.",
                                 'tarea',
-                                $caso->id
+                                $caso->id,
+                                null,
+                                $tareaCreada->id
                             );
                         }
                     }
@@ -363,7 +367,13 @@ class CasoController extends Controller
         // Check if user was previously assigned and deactivated
         $existente = $caso->usuarios()->where('users.id', $userId)->first();
         if ($existente) {
-            $caso->usuarios()->updateExistingPivot($userId, ['activo' => true]);
+            $caso->usuarios()->updateExistingPivot($userId, [
+                'activo' => true,
+                'estado' => 'Pendiente',
+                'fecha_asignacion' => now(),
+                'fecha_finalizacion' => null,
+                'motivo_salida' => null,
+            ]);
         } else {
             $caso->usuarios()->attach($userId, [
                 'fecha_asignacion' => now(),
@@ -471,7 +481,7 @@ class CasoController extends Controller
 
     public function enviarMensaje(Request $request, Caso $caso)
     {
-        $this->autorizarAccesoCaso($caso, escritura: true);
+        $this->autorizarComunicacionCaso($caso);
 
         $data = $request->validate([
             'mensaje' => ['required', 'string', 'max:1000'],
@@ -524,6 +534,32 @@ class CasoController extends Controller
         return redirect()->route('casos.show', $caso->id)
             ->with('tab', 'mensajes') // Para abrir la tab correcta al recargar
             ->with('success', 'Mensaje enviado.');
+    }
+
+    public function agregarAnotacionSeguimiento(Request $request, Caso $caso)
+    {
+        abort_unless(Auth::user()->esConsultor(), 403, 'Solo el rol Consultor puede agregar anotaciones de seguimiento.');
+        $this->autorizarAccesoCaso($caso);
+
+        $data = $request->validate([
+            'anotacion' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
+
+        Bitacora::registrar(
+            modulo: 'Seguimiento',
+            accion: 'Anotación de Consultor',
+            descripcion: Auth::user()->name.' agregó una anotación de seguimiento.',
+            casoId: $caso->id,
+            entidadId: $caso->id,
+            metadata: [
+                'anotacion' => $data['anotacion'],
+                'rol' => 'Consultor',
+                'fecha_bogota' => now('America/Bogota')->format('Y-m-d H:i:s'),
+            ],
+        );
+
+        return redirect()->route('casos.show', $caso->id)
+            ->with('success', 'Anotación de seguimiento registrada en la bitácora.');
     }
 
     public function getMensajesJson(Request $request, Caso $caso)
@@ -724,6 +760,16 @@ class CasoController extends Controller
             ->exists();
 
         abort_unless($asignado, 403, 'No tienes acceso a este caso.');
+    }
+
+    private function autorizarComunicacionCaso(Caso $caso): void
+    {
+        if (Auth::user()->esConsultor()) {
+            $this->autorizarAccesoCaso($caso);
+            return;
+        }
+
+        $this->autorizarAccesoCaso($caso, escritura: true);
     }
 
     private function serializarMensaje($mensaje, User $user): array

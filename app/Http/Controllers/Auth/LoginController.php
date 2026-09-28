@@ -3,6 +3,11 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\DashboardController;
+use App\Models\Bitacora;
+use App\Models\Notificacion;
+use App\Models\PushSubscription;
+use App\Models\User;
 use App\Services\ProgressiveLoginThrottle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,7 +23,7 @@ class LoginController extends Controller
                 return redirect()->route('password.change.form');
             }
 
-            return app(\App\Http\Controllers\DashboardController::class)->index();
+            return app(DashboardController::class)->index();
         }
 
         return view('auth.login');
@@ -36,18 +41,18 @@ class LoginController extends Controller
         if ($request->has('recuperar')) {
 
             $request->validate([
-                'email' => 'required|email|exists:users,email'
+                'email' => 'required|email|exists:users,email',
             ], [
                 'email.exists' => 'No se encontró ningún usuario con ese correo electrónico.',
             ]);
 
-            $user = \App\Models\User::where('email', $request->email)->first();
+            $user = User::where('email', $request->email)->first();
 
-            if (!$user) {
+            if (! $user) {
                 return back()->withErrors(['email' => 'No se encontró el usuario.']);
             }
 
-            if (!$user->activo) {
+            if (! $user->activo) {
                 return back()->withErrors(['email' => 'Esta cuenta se encuentra inactiva. Contacta al administrador directamente.']);
             }
 
@@ -65,39 +70,39 @@ class LoginController extends Controller
             DB::table('password_resets')->insert([
                 'email' => $request->email,
                 'token' => bcrypt(now()),
-                'created_at' => now()
+                'created_at' => now(),
             ]);
 
             // Notificar a TODOS los administradores
-            $admins = \App\Models\User::whereHas('role', function($q) {
+            $admins = User::whereHas('role', function ($q) {
                 $q->where('nombre', 'Administrador');
             })->where('activo', true)->get();
 
             foreach ($admins as $admin) {
-                \App\Models\Notificacion::enviar(
+                Notificacion::enviar(
                     $admin->id,
                     'Solicitud de recuperación de contraseña',
                     "El usuario {$user->name} ({$user->email}) ha solicitado un cambio de contraseña. Por favor, ingresa al módulo de Usuarios para asignarle una nueva contraseña.",
-                    'warning'
+                    'recuperacion_password'
                 );
             }
 
             // Registrar en bitácora
-            \App\Models\Bitacora::create([
-                'caso_id'     => null,
-                'user_id'     => $user->id,
-                'modulo'      => 'Seguridad',
-                'accion'      => 'Solicitud de recuperación',
+            Bitacora::create([
+                'caso_id' => null,
+                'user_id' => $user->id,
+                'modulo' => 'Seguridad',
+                'accion' => 'Solicitud de recuperación',
                 'descripcion' => "El usuario {$user->name} ({$user->email}) solicitó recuperación de contraseña.",
-                'ip'          => $request->ip(),
-                'user_agent'  => $request->userAgent(),
-                'created_at'  => now(),
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'created_at' => now(),
             ]);
 
             return back()->with('success', 'Tu solicitud ha sido enviada al administrador. Serás contactado para restablecer tu contraseña.');
         }
 
-        //login normal
+        // login normal
         $credentials = $request->validate([
             'email' => 'required|email',
             'password' => 'required',
@@ -124,15 +129,15 @@ class LoginController extends Controller
         }
 
         // Registrar intento de login fallido en bitácora para trazabilidad
-        $userFallido = \App\Models\User::where('email', $request->email)->first();
+        $userFallido = User::where('email', $request->email)->first();
         if ($userFallido) {
-            \App\Models\Bitacora::create([
-                'caso_id'    => null,
-                'user_id'    => $userFallido->id,
-                'modulo'     => 'Seguridad',
-                'accion'     => 'Login fallido',
-                'descripcion'=> "Intento de acceso fallido para el usuario {$userFallido->email}.",
-                'ip'         => $request->ip(),
+            Bitacora::create([
+                'caso_id' => null,
+                'user_id' => $userFallido->id,
+                'modulo' => 'Seguridad',
+                'accion' => 'Login fallido',
+                'descripcion' => "Intento de acceso fallido para el usuario {$userFallido->email}.",
+                'ip' => $request->ip(),
                 'user_agent' => $request->userAgent(),
                 'created_at' => now(),
             ]);
@@ -143,13 +148,20 @@ class LoginController extends Controller
         return back()->withErrors([
             'email' => $lockMinutes === null
                 ? 'Credenciales incorrectas'
-                : "Demasiados intentos fallidos. Inténtalo nuevamente en {$lockMinutes} " . ($lockMinutes === 1 ? 'minuto.' : 'minutos.'),
+                : "Demasiados intentos fallidos. Inténtalo nuevamente en {$lockMinutes} ".($lockMinutes === 1 ? 'minuto.' : 'minutos.'),
         ])->onlyInput('email');
     }
 
     // Logout
     public function logout(Request $request)
     {
+        if (Auth::check() && $request->filled('push_endpoint')) {
+            PushSubscription::query()
+                ->where('user_id', Auth::id())
+                ->where('endpoint_hash', PushSubscription::hashEndpoint((string) $request->input('push_endpoint')))
+                ->delete();
+        }
+
         Auth::logout();
 
         $request->session()->invalidate();
@@ -162,6 +174,6 @@ class LoginController extends Controller
     {
         $minutes = max(1, (int) ceil($seconds / 60));
 
-        return "Este correo está bloqueado temporalmente. Inténtalo nuevamente en {$minutes} " . ($minutes === 1 ? 'minuto.' : 'minutos.');
+        return "Este correo está bloqueado temporalmente. Inténtalo nuevamente en {$minutes} ".($minutes === 1 ? 'minuto.' : 'minutos.');
     }
 }

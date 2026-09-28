@@ -1,130 +1,17 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Exportar Historial Global</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            color: #333;
-            line-height: 1.5;
-            margin: 0;
-            padding: 20px;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #b11226;
-            padding-bottom: 10px;
-        }
-        .header h1 {
-            color: #b11226;
-            margin: 0;
-            font-size: 24px;
-        }
-        .header p {
-            margin: 5px 0 0;
-            font-size: 14px;
-            color: #666;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        th {
-            background-color: #f9f9f9;
-            color: #b11226;
-            font-weight: bold;
-        }
-        tr:nth-child(even) {
-            background-color: #fcfcfc;
-        }
-        .footer {
-            margin-top: 30px;
-            text-align: right;
-            font-size: 10px;
-            color: #999;
-        }
-        
-        @media print {
-            body {
-                padding: 0;
-            }
-            .btn-print {
-                display: none;
-            }
-        }
-        
-        .btn-print {
-            background-color: #b11226;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            cursor: pointer;
-            border-radius: 4px;
-            font-weight: bold;
-            display: block;
-            margin: 0 auto 20px;
-        }
-    </style>
-</head>
-<body>
-
-    <button class="btn-print" onclick="window.print()">Imprimir / Guardar como PDF</button>
-
-    <div class="header">
-        <h1>Historial Global del Sistema</h1>
-        <p>Bitácora de casos finalizados generada el {{ \App\Support\LocalDate::inBogota(now())?->format('d/m/Y H:i') }}</p>
-    </div>
-
-    <table>
-        <thead>
-            <tr>
-                <th>Fecha y Hora</th>
-                <th>Radicado</th>
-                <th>Evento</th>
-                <th>Descripción</th>
-                <th>Usuario</th>
-                <th>Rol</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($eventos as $evento)
-            <tr>
-                <td>{{ \App\Support\LocalDate::inBogota($evento->created_at)?->format('d/m/Y H:i') }}</td>
-                <td>{{ $evento->caso ? $evento->caso->radicado : 'N/A' }}</td>
-                <td>{{ $evento->accion }}</td>
-                <td>{{ $evento->descripcion }}</td>
-                <td>{{ $evento->usuario ? $evento->usuario->name : 'Sistema' }}</td>
-                <td>{{ $evento->usuario && $evento->usuario->role ? $evento->usuario->role->nombre : 'N/A' }}</td>
-            </tr>
-            @endforeach
-            
-            @if($eventos->isEmpty())
-            <tr>
-                <td colspan="6" style="text-align: center; padding: 20px;">No hay eventos registrados con los filtros seleccionados.</td>
-            </tr>
-            @endif
-        </tbody>
-    </table>
-
-    <div class="footer">
-        Sistema de Gestión de Casos Jurídicos - Federación Nacional de Cafeteros
-    </div>
-
-    <script>
-        // Imprimir automáticamente al abrir la vista para facilidad del usuario
-        window.onload = function() {
-            setTimeout(function() {
-                window.print();
-            }, 500);
-        };
-    </script>
-</body>
-</html>
+@extends('pdf.layouts.institucional', ['tituloPdf' => 'Historial Global del Sistema'])
+@section('content')
+<div class="report-hero"><div class="report-hero-main"><div class="eyebrow">Sistema de Gestión de Casos Jurídicos</div><h1>Historial Global del Sistema</h1></div><div class="report-hero-meta"><strong>Bitácora de casos finalizados</strong><br>Generada el {{ \App\Support\LocalDate::inBogota(now())?->format('d/m/Y · H:i') }}<br>America/Bogota</div></div>
+<div class="filters"><strong>Filtros aplicados</strong><br><span class="filter-item"><b>Radicado/solicitante:</b> {{ request('radicado', 'Todos') }}</span><span class="filter-item"><b>Evento:</b> {{ request('evento', 'Todos') }}</span><span class="filter-item"><b>Usuario:</b> {{ request('usuario_id', 'Todos') }}</span><span class="filter-item"><b>Tipo:</b> {{ request('tipo_id', 'Todos') }}</span><span class="filter-item"><b>Caso:</b> {{ request('caso_id', 'Todos') }}</span></div>
+<section class="section"><div class="section-heading"><h2>Trazabilidad de eventos</h2><span>{{ $eventos->count() }} evento(s)</span></div>
+@forelse($eventos as $evento)
+@php($detalleCorreccion = \App\Support\TaskCorrectionAuditPresenter::make($evento))
+<article class="event-card">
+    <div class="event-card-head"><div><span class="badge">{{ $evento->accion }}</span> <span class="cell-primary">{{ $evento->caso?->radicado ?? 'N/A' }}</span><span class="cell-secondary">{{ $evento->modulo }}</span></div><div style="text-align:right"><span class="cell-primary">{{ \App\Support\LocalDate::inBogota($evento->created_at)?->format('d/m/Y') }}</span><span class="cell-secondary">{{ \App\Support\LocalDate::inBogota($evento->created_at)?->format('H:i') }} · America/Bogota</span></div></div>
+    <div class="event-card-body"><div class="event-description">{{ $evento->descripcion }}</div>
+    @if($detalleCorreccion) @include('pdf.partials.audit-details', ['detalle' => $detalleCorreccion])
+    @elseif(is_array($evento->metadata) && count($evento->metadata))<div class="metadata">@foreach($evento->metadata as $clave => $valor)<span class="meta-item"><span class="meta-label">{{ $clave }}:</span> {{ is_array($valor) ? json_encode($valor, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : $valor }}</span>@endforeach</div>@endif
+    <div class="info-grid" style="margin-top:7px"><div class="info-block"><span class="info-label">Actor</span><span class="cell-primary">{{ $evento->usuario?->name ?? 'Sistema' }}</span></div><div class="info-block"><span class="info-label">Rol</span><span class="badge">{{ $evento->usuario?->role?->nombre ?? 'N/A' }}</span></div></div></div>
+</article>
+@empty<div class="event-card"><div class="empty">No hay eventos con los filtros seleccionados.</div></div>@endforelse
+</section>
+@endsection

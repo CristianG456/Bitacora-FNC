@@ -212,9 +212,20 @@
                     <p id="case-progress" class="text-xs text-gray-500 mt-1">Progreso: {{ $progreso }}% ({{ $tareasCompletadas }}/{{ $totalTareas }} completados)</p>
                 </div>
                 @if($esAdmin && $caso->estado !== 'Finalizado')
-                <button type="button" onclick="document.getElementById('modal-agregar-usuario').classList.remove('hidden')" class="btn-secondary text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300">
-                    <i data-lucide="user-plus" class="icon-sm"></i> Agregar Usuario
-                </button>
+                <div class="flex flex-wrap justify-end gap-2">
+                    @if(auth()->user()->tieneRol('Juridica') && !$caso->usuarios->contains('id', auth()->id()))
+                    <form action="{{ route('casos.usuarios.asignar', $caso->id) }}" method="POST">
+                        @csrf
+                        <input type="hidden" name="user_id" value="{{ auth()->id() }}">
+                        <button type="submit" class="btn-secondary text-blue-700 border-blue-200 hover:bg-blue-50 hover:border-blue-300">
+                            <i data-lucide="user-check" class="icon-sm"></i> Autoasignarme
+                        </button>
+                    </form>
+                    @endif
+                    <button type="button" onclick="document.getElementById('modal-agregar-usuario').classList.remove('hidden')" class="btn-secondary text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300">
+                        <i data-lucide="user-plus" class="icon-sm"></i> Agregar Usuario
+                    </button>
+                </div>
                 @endif
             </div>
 
@@ -312,23 +323,24 @@
                         <input type="text" name="descripcion" placeholder="Descripción de la nueva tarea (mín. 10 caracteres)..." class="form-input w-full text-sm" required minlength="10" maxlength="2000">
                     </div>
                     <div class="w-full sm:w-56">
-                        <select name="user_id" class="form-select w-full text-sm" required>
+                        <select name="user_id" id="task-assignee" class="form-select w-full text-sm" required>
                             <option value="">Asignar a...</option>
                             @php
-                                $usuariosAsignados = $caso->usuarios()->wherePivot('activo', true)->get();
-                                $listaUsuarios = $usuariosAsignados->isEmpty() ? \App\Models\User::where('activo', true)->orderBy('name')->get() : $usuariosAsignados;
+                                $listaUsuarios = $caso->usuarios()->wherePivot('activo', true)->get();
                             @endphp
                             @foreach($listaUsuarios as $u)
-                                <option value="{{ $u->id }}">{{ $u->name }}</option>
+                                <option value="{{ $u->id }}" data-role="{{ $u->role?->nombre }}">{{ $u->name }}</option>
                             @endforeach
                         </select>
                     </div>
                     <div class="w-full sm:w-36">
-                        <select name="tipo_accion" class="form-select w-full text-sm">
+                        <select name="tipo_accion" id="task-action-type" class="form-select w-full text-sm">
                             <option value="normal">Normal</option>
-                            <option value="firma">Firma</option>
                         </select>
                     </div>
+                    @if($listaUsuarios->isEmpty())
+                    <p class="w-full text-xs text-amber-700">Primero agrega un responsable activo o usa Autoasignarme.</p>
+                    @endif
                     <button type="submit" class="btn-secondary w-full sm:w-auto text-xs text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 py-2 px-4 whitespace-nowrap justify-center">
                         <i data-lucide="plus" class="icon-sm"></i> Agregar
                     </button>
@@ -484,6 +496,21 @@
             <div id="content-bitacora" class="flex-1 overflow-y-auto p-4 space-y-6 relative block">
                 <div class="absolute left-8 top-0 bottom-0 w-px bg-gray-200"></div>
 
+                @if(auth()->user()->esConsultor())
+                <details class="relative z-20 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                    <summary class="cursor-pointer list-none text-sm font-bold text-blue-800 flex items-center gap-2">
+                        <i data-lucide="notebook-pen" class="icon-sm"></i> Agregar anotación
+                    </summary>
+                    <form action="{{ route('casos.anotaciones-seguimiento', $caso->id) }}" method="POST" class="mt-3 space-y-2">
+                        @csrf
+                        <label for="consultant-note" class="block text-xs font-semibold text-gray-700">Anotación de seguimiento</label>
+                        <textarea id="consultant-note" name="anotacion" required minlength="10" maxlength="2000" rows="3" class="form-input w-full text-sm" placeholder="Registra una observación gerencial o de seguimiento..."></textarea>
+                        <p class="text-[11px] text-gray-500">Quedará registrada de forma inmutable en la bitácora con autor y fecha.</p>
+                        <button type="submit" class="btn-secondary text-blue-700 border-blue-200 hover:bg-blue-100">Guardar anotación</button>
+                    </form>
+                </details>
+                @endif
+
                 @forelse($caso->bitacoras as $bitacora)
                 <div id="audit-event-{{ $bitacora->id }}" data-audit-action="{{ $bitacora->accion }}" class="relative flex items-start gap-4 z-10 cursor-pointer group" onclick="mostrarDetalleEvento('{{ $bitacora->usuario?->name ?? 'Sistema' }}', '{{ $bitacora->accion }}', '{{ \App\Support\LocalDate::inBogota($bitacora->created_at)?->locale('es')->translatedFormat('d \d\e F \d\e Y \a \l\a\s H:i \h') }}', '{{ addslashes($bitacora->descripcion) }}')">
                     
@@ -512,6 +539,13 @@
                         </div>
                         <p class="text-[10px] font-bold uppercase tracking-wide text-red-700 mb-1">{{ $accionVisible }}</p>
                         <p class="text-xs text-gray-600 {{ $detalleCorreccion ? '' : 'truncate' }}">{{ $bitacora->descripcion }}</p>
+                        @if($bitacora->accion === 'Anotación de Consultor' && !empty($bitacora->metadata['anotacion']))
+                            <div class="mt-2 rounded border border-blue-200 bg-blue-50 p-2 text-[11px] text-gray-700">
+                                <p class="font-bold text-blue-800">Anotación de seguimiento</p>
+                                <p class="mt-1 whitespace-pre-line">{{ $bitacora->metadata['anotacion'] }}</p>
+                                <p class="mt-1 text-[10px] text-gray-500">Rol: {{ $bitacora->metadata['rol'] ?? $bitacora->usuario?->role?->nombre ?? 'Consultor' }} · {{ \App\Support\LocalDate::inBogota($bitacora->created_at)?->format('d/m/Y H:i') }}</p>
+                            </div>
+                        @endif
                         @include('components.task-correction-audit-details', ['detalle' => $detalleCorreccion, 'compacto' => true])
                         @if(!$detalleCorreccion)
                         @if(!empty($bitacora->metadata) && isset($bitacora->metadata['observacion']))
@@ -611,7 +645,7 @@
                         </div>
 
                         <div class="pt-3 border-t border-gray-100 shrink-0">
-                    @unless($esConsultor)
+                    @if($puedeEnviarMensajes)
                     <form id="form-chat" action="{{ route('casos.mensajes', $caso->id) }}" method="POST" class="flex items-center gap-2">
                         @csrf
                         <input type="hidden" name="destinatario_id" id="chat-recipient-id" value="{{ $tipoChat === 'directo' ? $interlocutorId : '' }}">
@@ -620,9 +654,7 @@
                             <svg class="icon-lg chat-send-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
                         </button>
                     </form>
-                    @else
-                        <p class="text-xs text-gray-500 text-center">El rol Consultor puede leer mensajes, pero no enviarlos.</p>
-                    @endunless
+                    @endif
                         </div>
                     </div>
                 </div>
@@ -757,6 +789,24 @@
 
 @push('scripts')
 <script>
+    (() => {
+        const responsable = document.getElementById('task-assignee');
+        const tipo = document.getElementById('task-action-type');
+        if (!responsable || !tipo) return;
+        const sincronizarFirma = () => {
+            const esAbogado = responsable.selectedOptions[0]?.dataset.role === 'Abogado';
+            const opcionFirma = tipo.querySelector('option[value="firma"]');
+            if (!esAbogado) {
+                opcionFirma?.remove();
+                tipo.value = 'normal';
+                return;
+            }
+            if (!opcionFirma) tipo.add(new Option('Firma', 'firma'));
+        };
+        responsable.addEventListener('change', sincronizarFirma);
+        sincronizarFirma();
+    })();
+
     (() => {
         const applicantType = document.getElementById('correction-applicant-type');
         const documentType = document.getElementById('correction-document-type');

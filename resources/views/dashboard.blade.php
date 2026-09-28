@@ -3,7 +3,7 @@
 @section('title', 'Dashboard - Sistema Jurídico')
 
 @push('styles')
-    <link rel="stylesheet" href="{{ asset('css/dashboard.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/dashboard.css') }}?v={{ filemtime(public_path('css/dashboard.css')) }}">
 @endpush
 
 @section('content')
@@ -24,7 +24,7 @@
 <div class="dashboard-stats-grid">
 
     {{-- Total Casos --}}
-    <div class="stat-card">
+    <a href="{{ route('dashboard', ['estado_dashboard' => 'todos']) }}" class="stat-card dashboard-filter-card {{ $filtroDashboard === 'todos' ? 'is-active' : '' }}" aria-pressed="{{ $filtroDashboard === 'todos' ? 'true' : 'false' }}">
         <div>
             <p class="stat-label">Total Casos</p>
             <h2 class="stat-value total">{{ $totalCasos }}</h2>
@@ -32,10 +32,10 @@
         <div class="stat-icon stat-icon-wrapper">
             <i data-lucide="folder" class="stat-icon-svg total"></i>
         </div>
-    </div>
+    </a>
 
     {{-- En Proceso --}}
-    <div class="stat-card">
+    <a href="{{ route('dashboard', ['estado_dashboard' => 'en_proceso']) }}" class="stat-card dashboard-filter-card {{ $filtroDashboard === 'en_proceso' ? 'is-active' : '' }}" aria-pressed="{{ $filtroDashboard === 'en_proceso' ? 'true' : 'false' }}">
         <div>
             <p class="stat-label">En Proceso</p>
             <h2 class="stat-value proceso">{{ $enProceso }}</h2>
@@ -43,10 +43,10 @@
         <div class="stat-icon stat-icon-wrapper proceso">
             <i data-lucide="clock" class="stat-icon-svg proceso"></i>
         </div>
-    </div>
+    </a>
 
     {{-- Completados --}}
-    <div class="stat-card">
+    <a href="{{ route('dashboard', ['estado_dashboard' => 'completados']) }}" class="stat-card dashboard-filter-card {{ $filtroDashboard === 'completados' ? 'is-active' : '' }}" aria-pressed="{{ $filtroDashboard === 'completados' ? 'true' : 'false' }}">
         <div>
             <p class="stat-label">Completados</p>
             <h2 class="stat-value completado">{{ $completados }}</h2>
@@ -54,10 +54,10 @@
         <div class="stat-icon stat-icon-wrapper completado">
             <i data-lucide="check-circle" class="stat-icon-svg completado"></i>
         </div>
-    </div>
+    </a>
 
     {{-- Finalizados --}}
-    <div class="stat-card">
+    <a href="{{ route('dashboard', ['estado_dashboard' => 'finalizados']) }}" class="stat-card dashboard-filter-card {{ $filtroDashboard === 'finalizados' ? 'is-active' : '' }}" aria-pressed="{{ $filtroDashboard === 'finalizados' ? 'true' : 'false' }}">
         <div>
             <p class="stat-label">Finalizados</p>
             <h2 class="stat-value finalizado">{{ $finalizados }}</h2>
@@ -65,14 +65,14 @@
         <div class="stat-icon stat-icon-wrapper finalizado">
             <i data-lucide="flag" class="stat-icon-svg finalizado"></i>
         </div>
-    </div>
+    </a>
 
 </div>
 @else
 <div class="dashboard-stats-grid user-stats">
 
     {{-- Total Asignados --}}
-    <div class="stat-card">
+    <a href="{{ route('dashboard', ['estado_dashboard' => 'todos']) }}" class="stat-card dashboard-filter-card {{ $filtroDashboard === 'todos' ? 'is-active' : '' }}" aria-pressed="{{ $filtroDashboard === 'todos' ? 'true' : 'false' }}">
         <div>
             <p class="stat-label">Total Asignados</p>
             <h2 class="stat-value total">{{ $totalCasos }}</h2>
@@ -80,10 +80,10 @@
         <div class="stat-icon stat-icon-wrapper" style="background:transparent; color:#6b7280; padding:0;">
             <i data-lucide="folder" style="width:20px; height:20px;"></i>
         </div>
-    </div>
+    </a>
 
     {{-- Pendientes --}}
-    <div class="stat-card">
+    <a href="{{ route('dashboard', ['estado_dashboard' => 'pendientes']) }}" class="stat-card dashboard-filter-card {{ $filtroDashboard === 'pendientes' ? 'is-active' : '' }}" aria-pressed="{{ $filtroDashboard === 'pendientes' ? 'true' : 'false' }}">
         <div>
             <p class="stat-label">Pendientes</p>
             <h2 class="stat-value">{{ $pendientes }}</h2>
@@ -91,10 +91,10 @@
         <div class="stat-icon stat-icon-wrapper" style="background:transparent; color:#6b7280; padding:0;">
             <i data-lucide="clock" style="width:20px; height:20px;"></i>
         </div>
-    </div>
+    </a>
 
     {{-- En Proceso --}}
-    <div class="stat-card">
+    <a href="{{ route('dashboard', ['estado_dashboard' => 'en_proceso']) }}" class="stat-card dashboard-filter-card {{ $filtroDashboard === 'en_proceso' ? 'is-active' : '' }}" aria-pressed="{{ $filtroDashboard === 'en_proceso' ? 'true' : 'false' }}">
         <div>
             <p class="stat-label">En Proceso</p>
             <h2 class="stat-value">{{ $enProceso }}</h2>
@@ -102,7 +102,7 @@
         <div class="stat-icon stat-icon-wrapper" style="background:transparent; color:#3b82f6; padding:0;">
             <i data-lucide="info" style="width:20px; height:20px;"></i>
         </div>
-    </div>
+    </a>
 
 </div>
 @endif
@@ -111,17 +111,20 @@
 <div style="display: block;">
 
         {{-- ── Casos Recientes ────────────────────────────────────── --}}
-    <div class="recent-cases-wrapper hidden sm:block">
+    <div class="recent-cases-wrapper">
 
         {{-- Header tabla --}}
-        <div class="recent-cases-header" style="{{ !auth()->user()->tieneAlgunRol(['Administrador', 'Juridica']) ? 'display:none;' : '' }}">
-            <h2 class="recent-cases-title">Casos Recientes</h2>
+        <div class="recent-cases-header">
+            <div><h2 class="recent-cases-title">{{ $tituloListado }}</h2><p class="dashboard-filter-caption">{{ $casosRecientes->count() }} resultado(s) reciente(s)</p></div>
+            <div class="flex items-center gap-2">
+            @if($filtroDashboard !== 'todos')<a href="{{ route('dashboard') }}" class="dashboard-clear-filter">Quitar filtro</a>@endif
             @if(auth()->user()->tieneAlgunRol(['Administrador', 'Juridica']))
             <a href="{{ route('casos.crear') }}" class="btn-primary btn-create-sm">
                 <i data-lucide="plus" class="btn-create-icon"></i>
                 Crear Nuevo Caso
             </a>
             @endif
+            </div>
         </div>
 
         @if($casosRecientes->isNotEmpty())
@@ -208,7 +211,7 @@
         @else
         <div class="empty-state">
             <i data-lucide="folder-open" class="empty-state-icon"></i>
-            <p class="empty-state-text">No hay casos registrados aún.</p>
+            <p class="empty-state-text">No hay casos para el filtro seleccionado.</p>
             @if(auth()->user()->tieneAlgunRol(['Administrador', 'Juridica']))
             <a href="{{ route('casos.crear') }}" class="btn-primary empty-state-btn">
                 Crear el primer caso

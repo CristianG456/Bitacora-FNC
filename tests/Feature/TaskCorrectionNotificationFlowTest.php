@@ -99,7 +99,7 @@ class TaskCorrectionNotificationFlowTest extends TestCase
             ->assertJsonPath('sinLeer', 1)
             ->assertJsonPath('mensajesSinLeer', 0)
             ->assertJsonPath('tareasPendientes', 0)
-            ->assertJsonPath('notificaciones.0.url', route('casos.show', $caso, false).'#tarea-'.$tarea->id)
+            ->assertJsonPath('notificaciones.0.url', route('casos.show', $caso, false).'?solicitud_correccion='.$solicitud->id.'#tarea-'.$tarea->id)
             ->assertJsonPath('notificaciones.0.tarea_id', $tarea->id)
             ->assertJsonPath('notificaciones.0.solicitud_correccion_id', $solicitud->id);
 
@@ -132,7 +132,7 @@ class TaskCorrectionNotificationFlowTest extends TestCase
         $this->actingAs($usuario)->getJson(route('notificaciones.recientes'))
             ->assertOk()
             ->assertJsonPath('mensajesSinLeer', 0)
-            ->assertJsonPath('notificaciones.0.url', route('casos.show', $caso, false).'#tarea-'.$tarea->id);
+            ->assertJsonPath('notificaciones.0.url', route('casos.show', $caso, false).'?solicitud_correccion='.$solicitud->id.'#tarea-'.$tarea->id);
 
         $this->actingAs($usuario)->get(route('casos.show', $caso))
             ->assertOk()

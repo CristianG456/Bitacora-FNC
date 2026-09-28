@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Caso;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(?Request $request = null)
     {
+        $request ??= request();
         $user  = Auth::user();
         $esAdmin = $user->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor', 'Abogado']);
 
@@ -28,11 +30,26 @@ class DashboardController extends Controller
         $pendientes    = (clone $baseQuery)->where('estado', 'Pendiente')->count();
 
         // ─── Casos recientes ───────────────────────────────────────
+        $filtrosDashboard = [
+            'todos' => ['estado' => null, 'etiqueta' => 'Casos recientes'],
+            'pendientes' => ['estado' => 'Pendiente', 'etiqueta' => 'Casos pendientes recientes'],
+            'en_proceso' => ['estado' => 'En proceso', 'etiqueta' => 'Casos en proceso recientes'],
+            'completados' => ['estado' => 'Finalizado', 'etiqueta' => 'Casos completados recientes'],
+            'finalizados' => ['estado' => 'Finalizado', 'etiqueta' => 'Casos finalizados recientes'],
+        ];
+        $filtroSolicitado = $request->query('estado_dashboard', 'todos');
+        $filtroDashboard = is_string($filtroSolicitado) && array_key_exists($filtroSolicitado, $filtrosDashboard)
+            ? $filtroSolicitado
+            : 'todos';
+        $filtroActivo = $filtrosDashboard[$filtroDashboard];
+
         $casosRecientes = (clone $baseQuery)
+            ->when($filtroActivo['estado'], fn ($query, $estado) => $query->where('estado', $estado))
             ->with(['tipo', 'subtipo'])
             ->latest()
             ->limit(10)
             ->get();
+        $tituloListado = $filtroActivo['etiqueta'];
 
 
 
@@ -47,6 +64,8 @@ class DashboardController extends Controller
             'finalizados',
             'pendientes',
             'casosRecientes',
+            'filtroDashboard',
+            'tituloListado',
             'notificacionesSinLeer'
         ));
     }
