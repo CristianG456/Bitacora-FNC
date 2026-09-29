@@ -20,7 +20,23 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="web-push-vapid-key" content="{{ config('webpush.vapid.public_key') }}">
     <meta name="theme-color" content="#b11226">
-    <script>window.userId = @json(auth()->id());</script>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Sistema Jurídico">
+    <script>
+        window.userId = @json(auth()->id());
+        try {
+            var readyUser = window.userId == null ? 'guest' : window.userId;
+            var pushReadyKey = 'webpush_ready:' + String(readyUser);
+            if (sessionStorage.getItem(pushReadyKey) === 'true'
+                && 'Notification' in window
+                && Notification.permission === 'granted') {
+                document.documentElement.classList.add('push-ready');
+            }
+        } catch (_) {
+            // The normal validation handles browsers where sessionStorage is unavailable.
+        }
+    </script>
     @vite(['resources/js/app.js'])
     <title>@yield('title', 'Sistema de Gestión de Casos Jurídicos')</title>
     <meta name="description" content="Sistema de Gestión de Casos Jurídicos - Federación Nacional de Cafeteros">
@@ -64,7 +80,14 @@
             <p class="push-gate__help" data-browser-help hidden></p>
             <div class="push-gate__actions"><button type="button" class="push-gate__secondary" data-show-help>Cómo activarlas</button><button type="button" class="push-gate__primary" data-recheck-notifications>Volver a comprobar</button></div>
         </div>
-        <div data-push-state="ios-install" hidden><div class="push-gate__icon" aria-hidden="true">📲</div><h1>Instala el Sistema Jurídico</h1><p>En iPhone y iPad, las notificaciones web requieren abrir el sistema como aplicación instalada. Usa Compartir → Añadir a pantalla de inicio y abre la aplicación desde allí.</p><div class="push-gate__actions"><button type="button" class="push-gate__primary" data-recheck-notifications>Volver a comprobar</button></div></div>
+        <div data-push-state="ios-install" hidden>
+            <div class="push-gate__icon" aria-hidden="true">📲</div>
+            <h1>Instala el Sistema Jurídico</h1>
+            <p>En iPhone y iPad, las notificaciones requieren que el Sistema Jurídico esté añadido a tu pantalla de inicio.</p>
+            <ol><li>Pulsa Compartir.</li><li>Selecciona “Añadir a pantalla de inicio”.</li><li>Abre el Sistema Jurídico desde el nuevo icono.</li></ol>
+            <div class="push-gate__actions"><button type="button" class="push-gate__primary" data-recheck-notifications>Entendido</button></div>
+        </div>
+        <div data-push-state="ios-unsupported" hidden><div class="push-gate__icon" aria-hidden="true">⚠️</div><h1>Actualiza iOS para continuar</h1><p>Esta versión de iOS no es compatible con las notificaciones requeridas. Actualiza iOS o iPadOS para continuar.</p></div>
         <div data-push-state="unsupported" hidden><div class="push-gate__icon" aria-hidden="true">⚠️</div><h1>Navegador no compatible</h1><p>Este navegador no es compatible con las notificaciones requeridas por el Sistema Jurídico. Utiliza una versión actual de Chrome, Edge, Firefox o una plataforma compatible.</p></div>
         <div data-push-state="offline" hidden><div class="push-gate__icon" aria-hidden="true">📡</div><h1>Sin conexión a Internet</h1><p>Reconéctate para utilizar el Sistema Jurídico. Los expedientes no se almacenan para uso sin conexión.</p></div>
         <div data-push-state="working" hidden aria-live="polite"><div class="push-gate__icon" aria-hidden="true">🔔</div><h1>Activando notificaciones</h1><p data-push-status>Verificando este dispositivo…</p></div>

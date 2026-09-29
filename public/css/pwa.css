@@ -1,12 +1,14 @@
 body.push-gate-pending > :not(#push-requirement-gate),
 body.push-gate-blocked > :not(#push-requirement-gate) { visibility: hidden !important; }
+html.push-ready body.push-gate-pending > :not(#push-requirement-gate) { visibility: visible !important; }
+html.push-ready #push-requirement-gate { display: none !important; }
 .push-gate[hidden], .pwa-install-banner[hidden], [data-push-state][hidden], [data-browser-help][hidden] { display: none !important; }
 .push-gate { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; padding: 1rem; background: #f1f5f9; color: #111827; visibility: visible !important; }
 .push-gate__card { width: min(100%, 36rem); background: #fff; border-radius: 1rem; box-shadow: 0 24px 60px rgba(17, 24, 39, .18); padding: clamp(1.5rem, 5vw, 2.5rem); text-align: center; border-top: .4rem solid #b11226; }
 .push-gate__icon { display: grid; place-items: center; width: 4rem; height: 4rem; margin: 0 auto 1rem; border-radius: 999px; background: #f9e6e9; color: #b11226; font-size: 2rem; }
 .push-gate h1 { margin: 0 0 .75rem; font-size: clamp(1.4rem, 4vw, 1.9rem); }
 .push-gate p { color: #4b5563; line-height: 1.6; }
-.push-gate ul { width: fit-content; margin: 1rem auto; padding-left: 1.4rem; text-align: left; color: #374151; line-height: 1.7; }
+.push-gate ul, .push-gate ol { width: fit-content; margin: 1rem auto; padding-left: 1.4rem; text-align: left; color: #374151; line-height: 1.7; }
 .push-gate__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .75rem; margin-top: 1.25rem; }
 .push-gate button, .pwa-install-banner button { min-height: 3rem; border: 0; border-radius: .65rem; padding: .75rem 1.15rem; font: inherit; font-weight: 700; cursor: pointer; }
 .push-gate__primary, .pwa-install-banner button { background: #b11226; color: #fff; }

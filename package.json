@@ -4,7 +4,8 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "test:pwa": "node --test --test-isolation=none tests/JavaScript/push-platform.test.mjs"
     },
     "devDependencies": {
         "@tailwindcss/forms": "^0.5.2",

@@ -1,3 +1,10 @@
+import {
+    isIosDevice,
+    isStandaloneApp,
+    pushReadyKey,
+    supportsIosWebPushVersion,
+} from './push-platform';
+
 const gate = document.getElementById('push-requirement-gate');
 
 if (gate) {
@@ -5,31 +12,67 @@ if (gate) {
     const vapidKey = document.querySelector('meta[name="web-push-vapid-key"]')?.content || '';
     const storeUrl = gate.dataset.storeUrl;
     const sections = [...gate.querySelectorAll('[data-push-state]')];
-    const status = gate.querySelector('[data-push-status]');
     const help = gate.querySelector('[data-browser-help]');
     const installBanner = document.getElementById('pwa-install-banner');
+    const readyKey = pushReadyKey(window.userId);
     let deferredInstallPrompt = null;
     let checking = false;
 
-    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-    const supported = window.isSecureContext
-        && 'serviceWorker' in navigator
-        && 'PushManager' in window
-        && 'Notification' in window;
+    const isIos = isIosDevice();
+    const isStandalone = isStandaloneApp();
+
+    function supportsPush() {
+        return window.isSecureContext
+            && 'serviceWorker' in navigator
+            && 'PushManager' in window
+            && 'Notification' in window;
+    }
+
+    function hasRememberedReadyState() {
+        try {
+            return sessionStorage.getItem(readyKey) === 'true';
+        } catch {
+            return false;
+        }
+    }
+
+    function rememberReadyState() {
+        try {
+            sessionStorage.setItem(readyKey, 'true');
+        } catch {
+            // El gate sigue siendo seguro aunque el navegador bloquee sessionStorage.
+        }
+        document.documentElement.classList.add('push-ready');
+    }
+
+    function clearReadyState() {
+        try {
+            sessionStorage.removeItem(readyKey);
+        } catch {
+            // No hay estado sensible que recuperar o limpiar fuera de esta sesion.
+        }
+        document.documentElement.classList.remove('push-ready');
+    }
 
     function state(name, message = '') {
+        clearReadyState();
         document.body.classList.add('push-gate-blocked');
         gate.hidden = false;
         sections.forEach(section => { section.hidden = section.dataset.pushState !== name; });
-        if (status) status.textContent = message;
+        const activeStatus = sections.find(section => section.dataset.pushState === name)?.querySelector('[data-push-status]');
+        if (activeStatus) activeStatus.textContent = message;
         installBanner?.setAttribute('hidden', '');
     }
 
-    function unlock() {
+    function revealApplication() {
         gate.hidden = true;
         document.body.classList.remove('push-gate-pending', 'push-gate-blocked');
         if (deferredInstallPrompt && !isStandalone) installBanner?.removeAttribute('hidden');
+    }
+
+    function unlock() {
+        rememberReadyState();
+        revealApplication();
         window.dispatchEvent(new CustomEvent('push:ready'));
     }
 
@@ -74,31 +117,42 @@ if (gate) {
         document.querySelectorAll('[data-push-endpoint]').forEach(input => { input.value = subscription.endpoint; });
     }
 
-    async function ensureSubscription() {
+    async function getRegistrationAndSubscription() {
         if (!vapidKey) throw new Error('Web Push aún no está configurado en este entorno.');
-        const registration = await navigator.serviceWorker.register('/service-worker.js', { scope: '/' });
-        await navigator.serviceWorker.ready;
-        let subscription = await registration.pushManager.getSubscription();
-        if (!subscription) {
-            subscription = await registration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(vapidKey),
-            });
-        }
-        await persist(subscription);
+        await navigator.serviceWorker.register('/service-worker.js', { scope: '/' });
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+
+        return { registration, subscription };
     }
 
-    async function check() {
+    async function check({ silent = false, confirmBackend = true } = {}) {
         if (checking) return;
         checking = true;
         try {
             if (!navigator.onLine) return state('offline');
-            if (!supported) return state('unsupported');
+            if (isIos && !supportsIosWebPushVersion()) return state('ios-unsupported');
             if (isIos && !isStandalone) return state('ios-install');
+            if (!supportsPush()) return state('unsupported');
             if (Notification.permission === 'default') return state('default');
             if (Notification.permission === 'denied') return state('denied');
-            state('working', 'Verificando la suscripción de este dispositivo…');
-            await ensureSubscription();
+
+            const { registration, subscription: currentSubscription } = await getRegistrationAndSubscription();
+            let subscription = currentSubscription;
+            let created = false;
+
+            if (!subscription) {
+                state('working', 'Creando la suscripción de este dispositivo…');
+                subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(vapidKey),
+                });
+                created = true;
+            } else if (!silent) {
+                state('working', 'Verificando la suscripción de este dispositivo…');
+            }
+
+            if (confirmBackend || created) await persist(subscription);
             unlock();
         } catch (error) {
             state('error', error?.message || 'No fue posible activar las notificaciones.');
@@ -108,12 +162,12 @@ if (gate) {
     }
 
     gate.querySelector('[data-enable-notifications]')?.addEventListener('click', async () => {
-        if (!supported || Notification.permission !== 'default') return check();
+        if (!supportsPush() || Notification.permission !== 'default') return check();
         state('working', 'Responde al permiso nativo de tu navegador…');
         await Notification.requestPermission();
         await check();
     });
-    gate.querySelectorAll('[data-recheck-notifications]').forEach(button => button.addEventListener('click', check));
+    gate.querySelectorAll('[data-recheck-notifications]').forEach(button => button.addEventListener('click', () => check()));
     gate.querySelector('[data-show-help]')?.addEventListener('click', () => {
         help.textContent = browserHelp();
         help.hidden = false;
@@ -132,12 +186,24 @@ if (gate) {
         installBanner?.setAttribute('hidden', '');
     });
     window.addEventListener('appinstalled', () => installBanner?.setAttribute('hidden', ''));
-    window.addEventListener('online', check);
+    window.addEventListener('online', () => check({ silent: hasRememberedReadyState(), confirmBackend: false }));
     window.addEventListener('offline', () => state('offline'));
-    window.addEventListener('focus', check);
+    window.addEventListener('focus', () => check({ silent: hasRememberedReadyState(), confirmBackend: false }));
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') check();
+        if (document.visibilityState === 'visible') {
+            check({ silent: hasRememberedReadyState(), confirmBackend: false });
+        }
     });
 
-    check();
+    const canFastReveal = hasRememberedReadyState()
+        && 'Notification' in window
+        && Notification.permission === 'granted';
+
+    if (canFastReveal) {
+        revealApplication();
+        check({ silent: true, confirmBackend: true });
+    } else {
+        clearReadyState();
+        check();
+    }
 }
