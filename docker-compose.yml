@@ -83,6 +83,36 @@ services:
     networks:
       - internal
 
+  # Opcional mientras QUEUE_CONNECTION=sync. Al activar una cola asincrona,
+  # este worker reutiliza la identidad VAPID creada por app y nunca inicializa.
+  worker:
+    image: cristian123456/bitacora-fnc:v1.5.24
+    container_name: bitacora_worker
+    restart: unless-stopped
+    profiles: ["queue"]
+    working_dir: /var/www
+
+    entrypoint: []
+    command: ["php", "artisan", "queue:work", "--sleep=3", "--tries=3", "--timeout=300", "--max-time=3600"]
+
+    env_file:
+      - .env
+
+    environment:
+      BACKUP_MYSQL_SSL_VERIFY_SERVER_CERT: "false"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+
+    volumes:
+      - bitacora_storage:/var/www/storage
+
+    networks:
+      - internal
+
   webserver:
     image: cristian123456/bitacora-fnc:v1.5.24
     container_name: juridica_nginx

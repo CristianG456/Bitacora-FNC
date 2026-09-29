@@ -20,8 +20,24 @@ until MYSQL_PWD="$DB_PASSWORD" mysqladmin ping -h "$DB_HOST" -P "$DB_PORT" -u "$
     sleep 3
 done
 
-echo "Aplicando migraciones pendientes..."
-php artisan migrate --force
+echo "Preparando configuracion del contenedor..."
+php artisan config:clear
+
+echo "Ejecutando bootstrap controlado de migraciones y Web Push..."
+php artisan app:container-bootstrap
+
+# El bootstrap se ejecuta como root, pero PHP-FPM usa www-data.
+# Solo la identidad VAPID necesita ser legible por los procesos de la aplicacion.
+chown www-data:www-data /var/www/storage/app/private
+chmod 750 /var/www/storage/app/private
+if [ -f /var/www/storage/app/private/webpush-vapid.json ]; then
+    chown www-data:www-data /var/www/storage/app/private/webpush-vapid.json
+    chmod 600 /var/www/storage/app/private/webpush-vapid.json
+fi
+if [ -f /var/www/storage/app/private/webpush-vapid.json.lock ]; then
+    chown www-data:www-data /var/www/storage/app/private/webpush-vapid.json.lock
+    chmod 600 /var/www/storage/app/private/webpush-vapid.json.lock
+fi
 
 table_count() {
     MYSQL_PWD="$DB_PASSWORD" mysql -h "$DB_HOST" -P "$DB_PORT" \
@@ -40,6 +56,9 @@ fi
 php artisan db:seed --class=RolesSeeder --force
 # No reemplaza un administrador ya existente.
 php artisan app:create-admin
+
+echo "Construyendo cache de configuracion..."
+php artisan config:cache
 
 echo "=== Iniciando php-fpm ==="
 exec php-fpm

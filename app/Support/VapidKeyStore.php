@@ -89,7 +89,7 @@ class VapidKeyStore
             throw new RuntimeException('No fue posible crear el directorio privado para VAPID.');
         }
 
-        @chmod($directory, 0700);
+        @chmod($directory, 0750);
         $lockPath = $path.'.lock';
         $lock = fopen($lockPath, 'c');
         if ($lock === false) {
