@@ -43,6 +43,10 @@ Route::middleware(['auth'])->group(function () {
 
         // Dashboard (todos los roles autenticados)
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        Route::get('/dashboard/casos/buscar', [DashboardController::class, 'buscarCasos'])->name('dashboard.casos.buscar');
+        Route::get('/dashboard/casos/{caso}/bitacora', [DashboardController::class, 'bitacoraCaso'])
+            ->whereNumber('caso')
+            ->name('dashboard.casos.bitacora');
 
         // Notificaciones
         Route::get('/notificaciones/recientes', [NotificacionController::class, 'getRecientes'])->name('notificaciones.recientes');

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Notificacion;
 use App\Models\PushSubscription as StoredSubscription;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Minishlink\WebPush\Subscription;
 use Minishlink\WebPush\WebPush;
@@ -39,6 +40,17 @@ class WebPushService
         $sent = 0;
 
         $subscriptions->each(function (StoredSubscription $stored) use ($webPush, $payload, $notification, &$sent) {
+            $deliveryKey = 'webpush:sent:'.$notification->id.':'.$stored->endpoint_hash;
+            $lock = Cache::lock($deliveryKey.':lock', 30);
+            if (! $lock->get()) {
+                return;
+            }
+
+            try {
+                if (Cache::has($deliveryKey)) {
+                    return;
+                }
+
                 $subscription = Subscription::create([
                     'endpoint' => $stored->endpoint,
                     'publicKey' => $stored->p256dh,
@@ -49,6 +61,7 @@ class WebPushService
                 $report = $webPush->sendOneNotification($subscription, $payload);
                 if ($report->isSuccess()) {
                     $stored->forceFill(['last_used_at' => now()])->save();
+                    Cache::forever($deliveryKey, true);
                     $sent++;
 
                     return;
@@ -66,7 +79,10 @@ class WebPushService
                     'status' => $report->getResponse()?->getStatusCode(),
                     'reason' => $report->getReason(),
                 ]);
-            });
+            } finally {
+                $lock->release();
+            }
+        });
 
         return $sent;
     }

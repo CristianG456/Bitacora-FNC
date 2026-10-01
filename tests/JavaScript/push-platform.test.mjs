@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
 
 import {
     iosVersion,
     isIosDevice,
     isStandaloneApp,
     pushReadyKey,
+    shouldSuppressInstallPrompt,
     supportsIosWebPushVersion,
 } from '../../resources/js/push-platform.js';
 
@@ -52,4 +55,53 @@ test('detects standalone from display mode or the iOS navigator flag', () => {
 
 test('scopes the non-sensitive ready marker to the authenticated user', () => {
     assert.equal(pushReadyKey(42), 'webpush_ready:42');
+});
+
+test('suppresses the install prompt for cooldown and installed contexts', () => {
+    assert.equal(shouldSuppressInstallPrompt({ standalone: false, installed: false, dismissedUntil: 2000, now: 1000 }), true);
+    assert.equal(shouldSuppressInstallPrompt({ standalone: true, installed: false, dismissedUntil: 0, now: 1000 }), true);
+    assert.equal(shouldSuppressInstallPrompt({ standalone: false, installed: true, dismissedUntil: 0, now: 1000 }), true);
+    assert.equal(shouldSuppressInstallPrompt({ standalone: false, installed: false, dismissedUntil: 500, now: 1000 }), false);
+});
+
+function serviceWorkerPushHarness() {
+    const handlers = {};
+    const shown = [];
+    const self = {
+        location: { origin: 'https://example.test' },
+        registration: {
+            showNotification(title, options) {
+                shown.push({ title, options });
+                return Promise.resolve();
+            },
+        },
+        clients: { claim() {}, matchAll() { return Promise.resolve([]); } },
+        skipWaiting() {},
+        addEventListener(type, handler) { handlers[type] = handler; },
+    };
+    const source = readFileSync(new URL('../../public/service-worker.js', import.meta.url), 'utf8');
+    runInNewContext(source, { self, caches: {}, fetch() {}, URL, Response });
+
+    return { push: handlers.push, shown };
+}
+
+test('empty or invalid push payload never creates a generic notification', () => {
+    const harness = serviceWorkerPushHarness();
+    harness.push({ data: null, waitUntil() { throw new Error('empty push must not display'); } });
+    harness.push({ data: { json() { throw new Error('invalid json'); } }, waitUntil() { throw new Error('invalid push must not display'); } });
+    harness.push({ data: { json() { return { title: 'Sistema Jurídico', body: 'Sin evento' }; } }, waitUntil() { throw new Error('payload without notification id must not display'); } });
+    assert.equal(harness.shown.length, 0);
+});
+
+test('valid logical push is shown once and is not sticky', async () => {
+    const harness = serviceWorkerPushHarness();
+    let pending;
+    harness.push({
+        data: { json() { return { title: 'Sistema Jurídico', body: 'Tienes una nueva tarea.', data: { notification_id: 10, url: '/casos/1' } }; } },
+        waitUntil(promise) { pending = promise; },
+    });
+    await pending;
+
+    assert.equal(harness.shown.length, 1);
+    assert.equal(harness.shown[0].options.requireInteraction, false);
 });

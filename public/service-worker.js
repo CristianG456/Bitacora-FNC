@@ -1,4 +1,4 @@
-const STATIC_CACHE = 'sistema-juridico-static-v1';
+const STATIC_CACHE = 'sistema-juridico-static-v2';
 const SAFE_ASSETS = [
     '/manifest.webmanifest',
     '/icons/icon-192.png',
@@ -46,15 +46,29 @@ self.addEventListener('fetch', event => {
 });
 
 self.addEventListener('push', event => {
-    let payload = {};
-    try { payload = event.data?.json() || {}; } catch (_) { payload = {}; }
-    event.waitUntil(self.registration.showNotification(payload.title || 'Sistema Jurídico', {
-        body: payload.body || 'Tienes una nueva notificación.',
+    if (!event.data) return;
+
+    let payload;
+    try { payload = event.data.json(); } catch (_) { return; }
+
+    const notificationId = payload?.data?.notification_id;
+    const validPayload = notificationId !== undefined
+        && notificationId !== null
+        && typeof payload.title === 'string'
+        && payload.title.trim() !== ''
+        && typeof payload.body === 'string'
+        && payload.body.trim() !== ''
+        && typeof payload.data?.url === 'string';
+    if (!validPayload) return;
+
+    event.waitUntil(self.registration.showNotification(payload.title, {
+        body: payload.body,
         icon: payload.icon || '/icons/icon-192.png',
         badge: payload.badge || '/icons/icon-192.png',
         tag: payload.tag,
         renotify: false,
-        data: payload.data || { url: '/dashboard' },
+        requireInteraction: false,
+        data: payload.data,
     }));
 });
 

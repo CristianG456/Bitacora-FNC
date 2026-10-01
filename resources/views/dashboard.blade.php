@@ -107,6 +107,26 @@
 </div>
 @endif
 
+<section class='dashboard-search' data-dashboard-search data-search-url='{{ route('dashboard.casos.buscar', [], false) }}'>
+    <div class='dashboard-search-copy'>
+        <div class='dashboard-search-icon'><i data-lucide='search'></i></div>
+        <div>
+            <h2>Consulta rápida de casos</h2>
+            <p>Encuentra un caso y abre su bitácora completa sin salir del Dashboard.</p>
+        </div>
+    </div>
+    <label class='dashboard-search-field'>
+        <span class='sr-only'>Buscar casos</span>
+        <i data-lucide='search' aria-hidden='true'></i>
+        <input type='search' autocomplete='off' spellcheck='false' maxlength='100'
+               placeholder='Buscar por radicado, solicitante, documento, NIT, fecha o responsable'
+               data-dashboard-search-input>
+        <span class='dashboard-search-spinner' data-dashboard-search-spinner hidden aria-label='Buscando'></span>
+    </label>
+    <p class='dashboard-search-hint' data-dashboard-search-hint>Escribe al menos 2 caracteres.</p>
+    <div class='dashboard-search-results' data-dashboard-search-results hidden aria-live='polite'></div>
+</section>
+
 {{-- FILA: TABLA DE CASOS + MIS TAREAS --}}
 <div style="display: block;">
 
@@ -170,7 +190,10 @@
                                 {{ \App\Support\LocalDate::inBogota($caso->created_at)?->format('d/m/Y') }}
                             </td>
                             <td>
-                                <a href="{{ route('casos.show', $caso->id) }}" class="btn-ver">Ver</a>
+                                <div class='dashboard-case-actions'>
+                                    <button type='button' class='btn-audit-quick js-open-case-audit' data-audit-url='{{ route('dashboard.casos.bitacora', $caso, false) }}'>Bitácora</button>
+                                    <a href="{{ route('casos.show', $caso->id) }}" class="btn-ver">Ver</a>
+                                </div>
                             </td>
                         </tr>
                         @endforeach
@@ -194,7 +217,10 @@
                             <strong>{{ $caso->radicado }}</strong>
                             <span class="badge {{ $badgeClass }}">{{ $caso->estado }}</span>
                         </div>
-                        <a href="{{ route('casos.show', $caso->id) }}" class="btn-ver">Ver Caso</a>
+                        <div class='dashboard-case-actions'>
+                            <button type='button' class='btn-audit-quick js-open-case-audit' data-audit-url='{{ route('dashboard.casos.bitacora', $caso, false) }}'>Bitácora</button>
+                            <a href="{{ route('casos.show', $caso->id) }}" class="btn-ver">Ver Caso</a>
+                        </div>
                     </div>
                     <div class="case-card-body">
                         <p class="case-description">{{ $caso->descripcion }}</p>
@@ -226,8 +252,202 @@
 
 </div>
 
+<div class='dashboard-audit-modal' data-dashboard-audit-modal hidden>
+    <div class='dashboard-audit-backdrop' data-dashboard-audit-close></div>
+    <section class='dashboard-audit-panel' role='dialog' aria-modal='true' aria-labelledby='dashboard-audit-title' tabindex='-1'>
+        <header class='dashboard-audit-modal-header'>
+            <div>
+                <p>Consulta del caso</p>
+                <h2 id='dashboard-audit-title'>Bitácora completa</h2>
+            </div>
+            <button type='button' class='dashboard-audit-close' data-dashboard-audit-close aria-label='Cerrar bitácora'>
+                <i data-lucide='x'></i>
+            </button>
+        </header>
+        <div class='dashboard-audit-body' data-dashboard-audit-body>
+            <div class='dashboard-audit-loading'>Cargando bitácora…</div>
+        </div>
+    </section>
+</div>
+
 @push('scripts')
 <script type="module">
+    window.__dashboardQuickAccessCleanup?.();
+
+    const searchRoot = document.querySelector('[data-dashboard-search]');
+    const auditModal = document.querySelector('[data-dashboard-audit-modal]');
+    const cleanupCallbacks = [];
+
+    if (searchRoot && auditModal) {
+        const input = searchRoot.querySelector('[data-dashboard-search-input]');
+        const results = searchRoot.querySelector('[data-dashboard-search-results]');
+        const hint = searchRoot.querySelector('[data-dashboard-search-hint]');
+        const spinner = searchRoot.querySelector('[data-dashboard-search-spinner]');
+        const panel = auditModal.querySelector('.dashboard-audit-panel');
+        const body = auditModal.querySelector('[data-dashboard-audit-body]');
+        let debounceTimer;
+        let searchController;
+        let auditController;
+        let lastFocused;
+
+        const badgeClass = (estado) => ({
+            'En proceso': 'is-process',
+            'Completado': 'is-complete',
+            'Finalizado': 'is-final',
+        }[estado] || 'is-pending');
+
+        const closeModal = () => {
+            auditController?.abort();
+            auditModal.hidden = true;
+            document.body.classList.remove('dashboard-modal-open');
+            body.innerHTML = '<div class=\'dashboard-audit-loading\'>Cargando bitácora…</div>';
+            lastFocused?.focus?.();
+        };
+
+        const openModal = async (url, trigger) => {
+            lastFocused = trigger || document.activeElement;
+            auditController?.abort();
+            auditController = new AbortController();
+            auditModal.hidden = false;
+            document.body.classList.add('dashboard-modal-open');
+            body.innerHTML = '<div class=\'dashboard-audit-loading\'>Cargando bitácora…</div>';
+            panel.focus();
+
+            try {
+                const response = await fetch(url, {
+                    headers: { Accept: 'text/html', 'X-Requested-With': 'XMLHttpRequest' },
+                    signal: auditController.signal,
+                });
+                if (!response.ok) {
+                    throw new Error(response.status === 404 || response.status === 403
+                        ? 'No tienes permiso para consultar este caso.'
+                        : 'No fue posible cargar la bitácora.');
+                }
+                body.innerHTML = await response.text();
+                window.lucide?.createIcons();
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    const errorBox = document.createElement('div');
+                    errorBox.className = 'dashboard-audit-error';
+                    errorBox.textContent = error.message;
+                    body.replaceChildren(errorBox);
+                }
+            }
+        };
+
+        const renderResults = (items, message) => {
+            results.replaceChildren();
+            results.hidden = false;
+
+            if (!items.length) {
+                const empty = document.createElement('p');
+                empty.className = 'dashboard-search-empty';
+                empty.textContent = message || 'No se encontraron casos con ese criterio.';
+                results.appendChild(empty);
+                return;
+            }
+
+            items.forEach((item) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'dashboard-search-result';
+
+                const top = document.createElement('span');
+                top.className = 'dashboard-search-result-top';
+                const radicado = document.createElement('strong');
+                radicado.textContent = item.radicado;
+                const status = document.createElement('span');
+                status.className = `dashboard-result-status ${badgeClass(item.estado)}`;
+                status.textContent = item.estado;
+                top.append(radicado, status);
+
+                const subject = document.createElement('span');
+                subject.className = 'dashboard-search-result-subject';
+                subject.textContent = `${item.solicitante} · ${item.tipo}${item.subtipo ? ` / ${item.subtipo}` : ''}`;
+
+                const meta = document.createElement('span');
+                meta.className = 'dashboard-search-result-meta';
+                const responsibleText = item.responsables.length ? item.responsables.join(', ') : 'Sin responsables';
+                meta.textContent = `${item.fecha} · ${responsibleText}`;
+
+                const description = document.createElement('span');
+                description.className = 'dashboard-search-result-description';
+                description.textContent = item.descripcion || 'Sin descripción';
+
+                button.append(top, subject, meta, description);
+                button.addEventListener('click', () => openModal(item.bitacora_url, button));
+                results.appendChild(button);
+            });
+        };
+
+        const search = async () => {
+            const query = input.value.trim();
+            searchController?.abort();
+
+            if (query.length < 2) {
+                results.hidden = true;
+                results.replaceChildren();
+                hint.textContent = 'Escribe al menos 2 caracteres.';
+                spinner.hidden = true;
+                return;
+            }
+
+            searchController = new AbortController();
+            spinner.hidden = false;
+            hint.textContent = 'Buscando…';
+
+            try {
+                const url = new URL(searchRoot.dataset.searchUrl, window.location.origin);
+                url.searchParams.set('q', query);
+                const response = await fetch(url, {
+                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    signal: searchController.signal,
+                });
+                if (!response.ok) throw new Error();
+                const payload = await response.json();
+                renderResults(payload.data || [], payload.message);
+                hint.textContent = `${payload.data?.length || 0} resultado(s). Selecciona un caso para ver la bitácora.`;
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    renderResults([], 'No fue posible realizar la búsqueda. Intenta nuevamente.');
+                    hint.textContent = 'La búsqueda no pudo completarse.';
+                }
+            } finally {
+                spinner.hidden = true;
+            }
+        };
+
+        const onInput = () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(search, 320);
+        };
+        input.addEventListener('input', onInput);
+        cleanupCallbacks.push(() => input.removeEventListener('input', onInput));
+
+        document.querySelectorAll('.js-open-case-audit').forEach((button) => {
+            const onOpen = () => openModal(button.dataset.auditUrl, button);
+            button.addEventListener('click', onOpen);
+            cleanupCallbacks.push(() => button.removeEventListener('click', onOpen));
+        });
+
+        auditModal.querySelectorAll('[data-dashboard-audit-close]').forEach((element) => {
+            element.addEventListener('click', closeModal);
+            cleanupCallbacks.push(() => element.removeEventListener('click', closeModal));
+        });
+
+        const onKeydown = (event) => {
+            if (event.key === 'Escape' && !auditModal.hidden) closeModal();
+        };
+        document.addEventListener('keydown', onKeydown);
+        cleanupCallbacks.push(() => document.removeEventListener('keydown', onKeydown));
+    }
+
+    window.__dashboardQuickAccessCleanup = () => {
+        cleanupCallbacks.forEach((cleanup) => cleanup());
+        document.body.classList.remove('dashboard-modal-open');
+        delete window.__dashboardQuickAccessCleanup;
+    };
+
     document.addEventListener('nueva-notificacion-recibida', (e) => {
         const notif = e.detail;
 

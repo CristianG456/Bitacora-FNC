@@ -12,6 +12,7 @@ use App\Models\Tarea;
 use App\Models\TipoProceso;
 use App\Models\TipoDocumentoSolicitante;
 use App\Models\User;
+use App\Services\CaseAuditService;
 use App\Support\LocalDate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -91,13 +92,6 @@ class CasoController extends Controller
             if ($caso->estado === 'Pendiente') {
                 $caso->update(['estado' => 'En proceso']);
                 
-                Bitacora::registrar(
-                    modulo: 'Casos',
-                    accion: 'Cambio de Estado',
-                    descripcion: "El caso pasó automáticamente a En proceso tras la revisión del usuario asignado ({$user->name}).",
-                    casoId: $caso->id,
-                    entidadId: $caso->id
-                );
             }
         }
 
@@ -146,6 +140,7 @@ class CasoController extends Controller
         $conteosChat = $this->conteosMensajesNoLeidos($caso, $user);
         $tiposDocumento = TipoDocumentoSolicitante::where('activo', true)->orderBy('orden')->get();
         $tiposProceso = TipoProceso::with('subtipos')->get();
+        $auditSummary = app(CaseAuditService::class)->resumen($caso);
 
         return view('casos.show', compact(
             'caso',
@@ -159,7 +154,8 @@ class CasoController extends Controller
             'mensajesChat',
             'conteosChat',
             'tiposDocumento',
-            'tiposProceso'
+            'tiposProceso',
+            'auditSummary'
         ));
     }
 
@@ -277,20 +273,7 @@ class CasoController extends Controller
                 }
             }
 
-            // Bitácora
-            Bitacora::registrar(
-                modulo:      'Casos',
-                accion:      'Crear',
-                descripcion: "El caso con radicado {$radicado} fue creado por ".Auth::user()->name.".",
-                casoId:      $caso->id,
-                entidadId:   $caso->id,
-                metadata:    [
-                    'radicado'    => $radicado,
-                    'tipo'        => $tipo->nombre,
-                    'subtipo'     => $subtipo->nombre,
-                    'solicitante' => $solicitante->nombre,
-                ]
-            );
+            app(CaseAuditService::class)->registrarCreacion($caso);
 
             if ($caso->ans_fecha_limite) {
                 Bitacora::registrar(
@@ -364,42 +347,45 @@ class CasoController extends Controller
             return redirect()->back()->with('error', 'El usuario ya está asignado a este caso.');
         }
 
-        // Check if user was previously assigned and deactivated
-        $existente = $caso->usuarios()->where('users.id', $userId)->first();
-        if ($existente) {
-            $caso->usuarios()->updateExistingPivot($userId, [
-                'activo' => true,
-                'estado' => 'Pendiente',
-                'fecha_asignacion' => now(),
-                'fecha_finalizacion' => null,
-                'motivo_salida' => null,
-            ]);
-        } else {
-            $caso->usuarios()->attach($userId, [
-                'fecha_asignacion' => now(),
-                'estado'           => 'Pendiente',
-                'activo'           => true,
-            ]);
-        }
+        $usuario = DB::transaction(function () use ($caso, $userId) {
+            // Check if user was previously assigned and deactivated.
+            $existente = $caso->usuarios()->where('users.id', $userId)->first();
+            if ($existente) {
+                $caso->usuarios()->updateExistingPivot($userId, [
+                    'activo' => true,
+                    'estado' => 'Pendiente',
+                    'fecha_asignacion' => now(),
+                    'fecha_finalizacion' => null,
+                    'motivo_salida' => null,
+                ]);
+            } else {
+                $caso->usuarios()->attach($userId, [
+                    'fecha_asignacion' => now(),
+                    'estado' => 'Pendiente',
+                    'activo' => true,
+                ]);
+            }
 
-        Notificacion::enviar(
-            $userId,
-            'Nuevo caso asignado',
-            "Se te ha asignado el caso radicado {$caso->radicado}.",
-            'caso',
-            $caso->id
-        );
+            Notificacion::enviar(
+                $userId,
+                'Nuevo caso asignado',
+                "Se te ha asignado el caso radicado {$caso->radicado}.",
+                'caso',
+                $caso->id
+            );
 
-        $usuario = User::find($userId);
+            $usuario = $caso->usuarios()->where('users.id', $userId)->with('role')->firstOrFail();
+            app(CaseAuditService::class)->registrarResponsable(
+                $caso,
+                $usuario,
+                'Asignacion',
+                $existente ? 'Reactivación de una asignación previa.' : null,
+                Auth::user(),
+                (bool) $existente,
+            );
 
-        Bitacora::registrar(
-            modulo: 'Casos',
-            accion: 'Asignacion',
-            descripcion: "El usuario ".Auth::user()->name." asignó a {$usuario->name} a este caso.",
-            casoId: $caso->id,
-            entidadId: $usuario->id,
-            usuarioAfectado: $usuario->id
-        );
+            return $usuario;
+        });
 
         try {
             \Illuminate\Support\Facades\Mail::to($usuario->email)->queue(new \App\Mail\CaseAssignedMail($caso, $usuario, []));
@@ -466,14 +452,7 @@ class CasoController extends Controller
             $caso->usuarios()->updateExistingPivot($usuario->id, ['activo' => false]);
 
             // 4. Registrar en bitácora
-            Bitacora::registrar(
-                modulo: 'Casos',
-                accion: 'Reemplazar',
-                descripcion: "El usuario ".Auth::user()->name." reemplazó a {$usuario->name} por {$nuevoUsuario->name} y le transfirió sus tareas.",
-                casoId: $caso->id,
-                entidadId: $nuevoUsuarioId,
-                usuarioAfectado: $usuario->id
-            );
+            app(CaseAuditService::class)->registrarReasignacion($caso, $usuario, $nuevoUsuario);
         });
 
         return redirect()->back()->with('success', "{$usuario->name} ha sido reemplazado por {$nuevoUsuario->name} correctamente.");
@@ -555,6 +534,14 @@ class CasoController extends Controller
                 'anotacion' => $data['anotacion'],
                 'rol' => 'Consultor',
                 'fecha_bogota' => now('America/Bogota')->format('Y-m-d H:i:s'),
+                'audit_version' => 1,
+                'event_type' => 'consultant_note',
+                'actor' => [
+                    'id' => Auth::id(),
+                    'nombre' => Auth::user()->name,
+                    'rol' => Auth::user()->role?->nombre ?? 'Consultor',
+                ],
+                'caso' => ['radicado' => $caso->radicado],
             ],
         );
 
@@ -703,20 +690,16 @@ class CasoController extends Controller
             return redirect()->back()->with('error', 'El caso ya se encuentra finalizado.');
         }
 
-        $caso->update([
-            'estado' => 'Finalizado',
-            'fecha_fin' => now('America/Bogota')->toDateString(),
-        ]);
+        DB::transaction(function () use ($caso) {
+            $casoBloqueado = Caso::query()->lockForUpdate()->findOrFail($caso->id);
+            $casoBloqueado->update([
+                'estado' => 'Finalizado',
+                'fecha_fin' => now('America/Bogota')->toDateString(),
+            ]);
 
-        app('App\Services\AnsService')->cerrarSeguimiento($caso->fresh());
-
-        Bitacora::registrar(
-            modulo: 'Casos',
-            accion: 'Cambio de Estado',
-            descripcion: "El caso fue marcado como Finalizado por ".Auth::user()->name.".",
-            casoId: $caso->id,
-            entidadId: $caso->id
-        );
+            app('App\Services\AnsService')->cerrarSeguimiento($casoBloqueado->fresh());
+            app(CaseAuditService::class)->registrarFinalizacion($casoBloqueado->fresh(), Auth::user());
+        });
 
         // Notificar a todos los usuarios asignados
         foreach ($caso->usuarios as $usuario) {

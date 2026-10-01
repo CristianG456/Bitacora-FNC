@@ -3,17 +3,20 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\SeguimientoExcelExportService;
 use App\Services\SeguimientoReportService;
 use App\Support\LocalDate;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class SeguimientoController extends Controller
 {
-    public function __construct(private readonly SeguimientoReportService $reportes) {}
+    public function __construct(
+        private readonly SeguimientoReportService $reportes,
+        private readonly SeguimientoExcelExportService $excel,
+    ) {}
 
     public function index(Request $request)
     {
@@ -51,6 +54,22 @@ class SeguimientoController extends Controller
     public function exportarExcel(Request $request)
     {
         $datos = $this->reportes->datos($this->filtros($request));
+        $archivo = $this->excel->crear($datos, $request->user()?->name ?? 'Sistema');
+        $nombreXlsx = 'seguimiento_'.now('America/Bogota')->format('Ymd_His').'.xlsx';
+
+        return response()->streamDownload(function () use ($archivo) {
+            try {
+                readfile($archivo);
+            } finally {
+                @unlink($archivo);
+            }
+        }, $nombreXlsx, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Cache-Control' => 'no-store, no-cache',
+        ]);
+    }
+
+    /* Exportación CSV reemplazada por el libro XLSX estructurado.
         $nombre = 'seguimiento_'.now('America/Bogota')->format('Ymd_His').'.csv';
 
         return Response::streamDownload(function () use ($datos) {
@@ -112,6 +131,8 @@ class SeguimientoController extends Controller
             'Cache-Control' => 'no-store, no-cache',
         ]);
     }
+
+    */
 
     private function filtros(Request $request): array
     {

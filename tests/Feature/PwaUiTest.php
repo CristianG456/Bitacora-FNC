@@ -28,19 +28,31 @@ class PwaUiTest extends TestCase
         $this->assertStringNotContainsString("caches.put('/casos", $worker);
         $this->assertStringNotContainsString("caches.put('/mensajes", $worker);
         $this->assertStringContainsString('notificationclick', $worker);
+        $this->assertStringContainsString("const STATIC_CACHE = 'sistema-juridico-static-v2'", $worker);
+        $this->assertStringContainsString('if (!event.data) return;', $worker);
+        $this->assertStringContainsString('if (!validPayload) return;', $worker);
+        $this->assertStringContainsString('requireInteraction: false', $worker);
+        $this->assertStringNotContainsString("payload.body || 'Tienes una nueva notificación.'", $worker);
+
+        $compose = file_get_contents(base_path('docker-compose.yml'));
+        $this->assertStringContainsString('location = /service-worker.js', $compose);
+        $this->assertStringContainsString('no-cache, no-store, must-revalidate', $compose);
     }
 
     public function test_mandatory_gate_has_no_bypass_and_native_permission_is_click_driven(): void
     {
         $layout = file_get_contents(resource_path('views/layouts/app.blade.php'));
         $manager = file_get_contents(resource_path('js/push-manager.js'));
+        $gateStart = strpos($layout, '<div id="push-requirement-gate"');
+        $gateEnd = strpos($layout, '{{-- SIDEBAR --}}');
+        $gateMarkup = substr($layout, $gateStart, $gateEnd - $gateStart);
 
         $this->assertStringContainsString('Notificaciones obligatorias', $layout);
         $this->assertStringContainsString('data-enable-notifications', $layout);
         $this->assertStringContainsString('Volver a comprobar', $layout);
-        $this->assertStringNotContainsString('Ahora no', $layout);
-        $this->assertStringNotContainsString('Más tarde', $layout);
-        $this->assertStringNotContainsString('Omitir', $layout);
+        $this->assertStringNotContainsString('Ahora no', $gateMarkup);
+        $this->assertStringNotContainsString('Más tarde', $gateMarkup);
+        $this->assertStringNotContainsString('Omitir', $gateMarkup);
         $this->assertSame(1, substr_count($manager, 'Notification.requestPermission()'));
         $this->assertStringContainsString("Notification.permission === 'denied'", $manager);
         $this->assertStringContainsString("window.addEventListener('focus'", $manager);
@@ -59,7 +71,22 @@ class PwaUiTest extends TestCase
         $this->assertStringContainsString('html.push-ready #push-requirement-gate', $css);
         $this->assertStringContainsString("sessionStorage.setItem(readyKey, 'true')", $manager);
         $this->assertStringContainsString('check({ silent: true, confirmBackend: true })', $manager);
+        $this->assertStringContainsString("updateViaCache: 'none'", $manager);
         $this->assertStringContainsString('sessionStorage.removeItem(pushReadyKey(window.userId))', $logout);
+    }
+
+    public function test_optional_install_banner_has_cooldown_and_stays_hidden_in_standalone(): void
+    {
+        $layout = file_get_contents(resource_path('views/layouts/app.blade.php'));
+        $manager = file_get_contents(resource_path('js/push-manager.js'));
+
+        $this->assertStringContainsString('data-install-pwa', $layout);
+        $this->assertStringContainsString('data-dismiss-pwa', $layout);
+        $this->assertStringContainsString('Ahora no', $layout);
+        $this->assertStringContainsString("'pwa_install_dismissed_until'", $manager);
+        $this->assertStringContainsString("'pwa_installed'", $manager);
+        $this->assertStringContainsString('if (isStandalone)', $manager);
+        $this->assertStringContainsString("window.addEventListener('appinstalled'", $manager);
     }
 
     public function test_ios_install_and_unsupported_states_are_distinct(): void

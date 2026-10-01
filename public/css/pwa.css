@@ -18,4 +18,6 @@ html.push-ready #push-requirement-gate { display: none !important; }
 .pwa-install-banner { position: fixed; z-index: 9000; right: 1rem; bottom: 1rem; width: min(25rem, calc(100% - 2rem)); padding: 1rem; border-radius: .8rem; background: #fff; box-shadow: 0 12px 35px rgba(17,24,39,.2); border-left: .3rem solid #b11226; }
 .pwa-install-banner strong { display: block; margin-bottom: .25rem; }
 .pwa-install-banner p { margin: 0 0 .75rem; color: #4b5563; font-size: .9rem; }
+.pwa-install-banner__actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.pwa-install-banner .pwa-install-banner__secondary { background: #e5e7eb; color: #111827; }
 @media (max-width: 480px) { .push-gate__actions { flex-direction: column; } .push-gate button { width: 100%; } }

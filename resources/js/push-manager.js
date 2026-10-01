@@ -2,6 +2,7 @@ import {
     isIosDevice,
     isStandaloneApp,
     pushReadyKey,
+    shouldSuppressInstallPrompt,
     supportsIosWebPushVersion,
 } from './push-platform';
 
@@ -15,7 +16,12 @@ if (gate) {
     const help = gate.querySelector('[data-browser-help]');
     const installBanner = document.getElementById('pwa-install-banner');
     const readyKey = pushReadyKey(window.userId);
+    const installDismissedUntilKey = 'pwa_install_dismissed_until';
+    const installMarkedKey = 'pwa_installed';
+    const installReminderDelay = 24 * 60 * 60 * 1000;
+    const installDismissDelay = 7 * installReminderDelay;
     let deferredInstallPrompt = null;
+    let installBannerTimer = null;
     let checking = false;
 
     const isIos = isIosDevice();
@@ -56,6 +62,7 @@ if (gate) {
 
     function state(name, message = '') {
         clearReadyState();
+        clearTimeout(installBannerTimer);
         document.body.classList.add('push-gate-blocked');
         gate.hidden = false;
         sections.forEach(section => { section.hidden = section.dataset.pushState !== name; });
@@ -67,12 +74,65 @@ if (gate) {
     function revealApplication() {
         gate.hidden = true;
         document.body.classList.remove('push-gate-pending', 'push-gate-blocked');
-        if (deferredInstallPrompt && !isStandalone) installBanner?.removeAttribute('hidden');
+    }
+
+    function localValue(key) {
+        try {
+            return localStorage.getItem(key);
+        } catch {
+            return null;
+        }
+    }
+
+    function setLocalValue(key, value) {
+        try {
+            localStorage.setItem(key, value);
+        } catch {
+            // La instalacion sigue siendo opcional si localStorage no esta disponible.
+        }
+    }
+
+    function removeLocalValue(key) {
+        try {
+            localStorage.removeItem(key);
+        } catch {
+            // No hay informacion sensible en estas preferencias de instalacion.
+        }
+    }
+
+    function installPromptIsSuppressed() {
+        return shouldSuppressInstallPrompt({
+            standalone: isStandalone,
+            installed: localValue(installMarkedKey) === 'true',
+            dismissedUntil: localValue(installDismissedUntilKey),
+        });
+    }
+
+    function hideInstallBanner() {
+        clearTimeout(installBannerTimer);
+        installBanner?.setAttribute('hidden', '');
+    }
+
+    function maybeShowInstallBanner() {
+        if (!deferredInstallPrompt
+            || installPromptIsSuppressed()
+            || !gate.hidden
+            || !('Notification' in window)
+            || Notification.permission !== 'granted') return;
+
+        installBanner?.removeAttribute('hidden');
+        setLocalValue(installDismissedUntilKey, String(Date.now() + installReminderDelay));
+    }
+
+    function scheduleInstallBanner() {
+        clearTimeout(installBannerTimer);
+        installBannerTimer = setTimeout(maybeShowInstallBanner, 3000);
     }
 
     function unlock() {
         rememberReadyState();
         revealApplication();
+        scheduleInstallBanner();
         window.dispatchEvent(new CustomEvent('push:ready'));
     }
 
@@ -119,7 +179,7 @@ if (gate) {
 
     async function getRegistrationAndSubscription() {
         if (!vapidKey) throw new Error('Web Push aún no está configurado en este entorno.');
-        await navigator.serviceWorker.register('/service-worker.js', { scope: '/' });
+        await navigator.serviceWorker.register('/service-worker.js', { scope: '/', updateViaCache: 'none' });
         const registration = await navigator.serviceWorker.ready;
         const subscription = await registration.pushManager.getSubscription();
 
@@ -176,16 +236,32 @@ if (gate) {
     window.addEventListener('beforeinstallprompt', event => {
         event.preventDefault();
         deferredInstallPrompt = event;
-        if (Notification.permission === 'granted' && gate.hidden) installBanner?.removeAttribute('hidden');
+        scheduleInstallBanner();
     });
     document.querySelector('[data-install-pwa]')?.addEventListener('click', async () => {
         if (!deferredInstallPrompt) return;
         deferredInstallPrompt.prompt();
-        await deferredInstallPrompt.userChoice;
+        const choice = await deferredInstallPrompt.userChoice;
+        if (choice.outcome !== 'accepted') {
+            setLocalValue(installDismissedUntilKey, String(Date.now() + installDismissDelay));
+        }
         deferredInstallPrompt = null;
-        installBanner?.setAttribute('hidden', '');
+        hideInstallBanner();
     });
-    window.addEventListener('appinstalled', () => installBanner?.setAttribute('hidden', ''));
+    document.querySelector('[data-dismiss-pwa]')?.addEventListener('click', () => {
+        setLocalValue(installDismissedUntilKey, String(Date.now() + installDismissDelay));
+        hideInstallBanner();
+    });
+    window.addEventListener('appinstalled', () => {
+        deferredInstallPrompt = null;
+        removeLocalValue(installDismissedUntilKey);
+        setLocalValue(installMarkedKey, 'true');
+        hideInstallBanner();
+    });
+    if (isStandalone) {
+        setLocalValue(installMarkedKey, 'true');
+        hideInstallBanner();
+    }
     window.addEventListener('online', () => check({ silent: hasRememberedReadyState(), confirmBackend: false }));
     window.addEventListener('offline', () => state('offline'));
     window.addEventListener('focus', () => check({ silent: hasRememberedReadyState(), confirmBackend: false }));

@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Models\Observacion;
+use App\Services\CaseAuditService;
 use Illuminate\Validation\ValidationException;
 
 class TareaController extends Controller
@@ -75,19 +76,7 @@ class TareaController extends Controller
                 $tarea->id
             );
 
-            // Obtener el nombre del usuario asignado
-            $nombreAsignado = $usuarioAsignado ? $usuarioAsignado->name : 'desconocido';
-
-            // Bitácora
-            Bitacora::registrar(
-                modulo:          'Tareas',
-                accion:          'Crear',
-                descripcion:     "El usuario ".Auth::user()->name." asignó la tarea '{$tarea->descripcion}' a {$nombreAsignado}.",
-                casoId:          $caso->id,
-                entidadId:       $tarea->id,
-                usuarioAfectado: $tarea->user_id,
-                metadata:        ['descripcion' => $tarea->descripcion, 'estado' => $tarea->estado, 'tipo_accion' => $tarea->tipo_accion]
-            );
+            app(CaseAuditService::class)->registrarTareaAsignada($caso, $tarea, Auth::user());
         });
 
         return redirect()->route('casos.show', $caso->id)
@@ -202,14 +191,11 @@ class TareaController extends Controller
 
             $caso->sincronizarEstadoPorTareas();
 
-            Bitacora::registrar(
-                modulo:          'Tareas',
-                accion:          'Completar',
-                descripcion:     "El usuario ".Auth::user()->name." completó la tarea '{$tareaBloqueada->descripcion}'.",
-                casoId:          $caso->id,
-                entidadId:       $tareaBloqueada->id,
-                usuarioAfectado: Auth::id(),
-                metadata:        ['observacion' => $request->input('observacion'), 'tipo_accion' => $tareaBloqueada->tipo_accion]
+            app(CaseAuditService::class)->registrarTareaCompletada(
+                $caso->fresh(),
+                $tareaBloqueada->fresh(),
+                $request->input('observacion'),
+                Auth::user(),
             );
 
             return true;

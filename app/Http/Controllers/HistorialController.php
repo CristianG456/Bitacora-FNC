@@ -7,6 +7,7 @@ use App\Models\Caso;
 use App\Models\User;
 use App\Models\TipoProceso;
 use App\Support\LocalDate;
+use App\Services\CaseAuditService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Response;
 
@@ -85,7 +86,9 @@ class HistorialController extends Controller
 
         $totalEventos = Bitacora::where('caso_id', $caso->id)->count();
 
-        return view('historial.show', compact('caso', 'eventos', 'acciones', 'usuarios', 'totalEventos'));
+        $auditSummary = app(CaseAuditService::class)->resumen($caso);
+
+        return view('historial.show', compact('caso', 'eventos', 'acciones', 'usuarios', 'totalEventos', 'auditSummary'));
     }
 
     /**
@@ -148,13 +151,14 @@ class HistorialController extends Controller
             fputcsv($file, ['Fecha', 'Radicado', 'Evento', 'Descripción', 'Usuario', 'Rol', 'Módulo']);
 
             foreach ($eventos as $evento) {
+                $actorSnapshot = is_array($evento->metadata) ? ($evento->metadata['actor'] ?? []) : [];
                 fputcsv($file, [
                     LocalDate::inBogota($evento->created_at)?->format('d/m/Y - H:i'),
                     $evento->caso ? $evento->caso->radicado : 'N/A',
                     $evento->accion,
                     $evento->descripcion,
-                    $evento->usuario ? $evento->usuario->name : 'Sistema',
-                    $evento->usuario && $evento->usuario->role ? $evento->usuario->role->nombre : 'N/A',
+                    $actorSnapshot['nombre'] ?? $evento->usuario?->name ?? 'Sistema',
+                    $actorSnapshot['rol'] ?? $evento->usuario?->role?->nombre ?? 'N/A',
                     $evento->modulo
                 ]);
             }

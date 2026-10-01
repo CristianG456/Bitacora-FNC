@@ -31,3 +31,7 @@ export function isStandaloneApp(windowLike = window, navigatorLike = navigator) 
 export function pushReadyKey(userId) {
     return `webpush_ready:${String(userId ?? 'guest')}`;
 }
+
+export function shouldSuppressInstallPrompt({ standalone, installed, dismissedUntil, now = Date.now() }) {
+    return standalone === true || installed === true || Number(dismissedUntil || 0) > now;
+}

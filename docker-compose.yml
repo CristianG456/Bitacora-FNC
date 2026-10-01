@@ -197,6 +197,15 @@ services:
             # ASSETS VITE
             # ====================================================
 
+            # El navegador debe revalidar siempre el Service Worker.
+            # Los assets versionados conservan su cache inmutable aparte.
+            location = /service-worker.js {
+                access_log off;
+                expires -1;
+                add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+                try_files $$uri =404;
+            }
+
             location ^~ /build/assets/ {
                 access_log off;
                 expires 1y;

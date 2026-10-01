@@ -71,6 +71,17 @@ class Bitacora extends Model
         ?array  $metadata        = null
     ): self {
         $request = request();
+        $actor = auth()->user();
+        $actor?->loadMissing('role');
+        $metadata = array_replace([
+            'audit_version' => 1,
+            'actor' => [
+                'id' => $actor?->id,
+                'nombre' => $actor?->name ?? 'Sistema',
+                'rol' => $actor?->role?->nombre ?? 'Sistema',
+            ],
+            'fecha_hora' => now('America/Bogota')->toIso8601String(),
+        ], $metadata ?? []);
 
         return self::create([
             'caso_id'          => $casoId,

@@ -731,7 +731,10 @@
 <div id="pwa-install-banner" class="pwa-install-banner" role="status" hidden>
     <strong>📲 Instala el Sistema Jurídico</strong>
     <p>Instala la aplicación para acceder más rápido y recibir una experiencia integrada.</p>
-    <button type="button" data-install-pwa>Instalar</button>
+    <div class="pwa-install-banner__actions">
+        <button type="button" data-install-pwa>Instalar</button>
+        <button type="button" class="pwa-install-banner__secondary" data-dismiss-pwa>Ahora no</button>
+    </div>
 </div>
 
 @include('layouts.shell-navigation')

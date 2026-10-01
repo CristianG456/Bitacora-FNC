@@ -495,6 +495,9 @@
             @if($verBitacora)
             <div id="content-bitacora" class="flex-1 overflow-y-auto p-4 space-y-6 relative block">
                 <div class="absolute left-8 top-0 bottom-0 w-px bg-gray-200"></div>
+                <div class="relative z-20">
+                    <x-case-audit-summary :summary="$auditSummary" compact />
+                </div>
 
                 @if(auth()->user()->esConsultor())
                 <details class="relative z-20 rounded-lg border border-blue-200 bg-blue-50 p-3">
@@ -512,7 +515,11 @@
                 @endif
 
                 @forelse($caso->bitacoras as $bitacora)
-                <div id="audit-event-{{ $bitacora->id }}" data-audit-action="{{ $bitacora->accion }}" class="relative flex items-start gap-4 z-10 cursor-pointer group" onclick="mostrarDetalleEvento('{{ $bitacora->usuario?->name ?? 'Sistema' }}', '{{ $bitacora->accion }}', '{{ \App\Support\LocalDate::inBogota($bitacora->created_at)?->locale('es')->translatedFormat('d \d\e F \d\e Y \a \l\a\s H:i \h') }}', '{{ addslashes($bitacora->descripcion) }}')">
+                @php
+                    $actorAuditoria = is_array($bitacora->metadata) ? ($bitacora->metadata['actor'] ?? []) : [];
+                    $nombreActorAuditoria = $actorAuditoria['nombre'] ?? $bitacora->usuario?->name ?? 'Sistema';
+                @endphp
+                <div id="audit-event-{{ $bitacora->id }}" data-audit-action="{{ $bitacora->accion }}" class="relative flex items-start gap-4 z-10 cursor-pointer group" onclick="mostrarDetalleEvento('{{ $nombreActorAuditoria }}', '{{ $bitacora->accion }}', '{{ \App\Support\LocalDate::inBogota($bitacora->created_at)?->locale('es')->translatedFormat('d \d\e F \d\e Y \a \l\a\s H:i \h') }}', '{{ addslashes($bitacora->descripcion) }}')">
                     
                     @php
                         $iconData = match(strtolower($bitacora->accion)) {
@@ -526,6 +533,7 @@
                             ? 'Tarea corregida'
                             : $bitacora->accion;
                         $detalleCorreccion = \App\Support\TaskCorrectionAuditPresenter::make($bitacora);
+                        $tipoAuditoria = is_array($bitacora->metadata) ? ($bitacora->metadata['event_type'] ?? null) : null;
                     @endphp
 
                     <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border-2 border-white {{ $iconData['color'] }} group-hover:scale-110 transition-transform">
@@ -534,12 +542,13 @@
 
                     <div class="flex-1 pt-1 bg-white group-hover:bg-gray-50 rounded transition p-1 -m-1">
                         <div class="flex justify-between items-start mb-0.5">
-                            <span class="text-xs font-bold text-gray-900">{{ $bitacora->usuario?->name ?? 'Sistema' }}</span>
+                            <span class="text-xs font-bold text-gray-900">{{ $nombreActorAuditoria }}</span>
                             <span class="text-[10px] text-gray-400 whitespace-nowrap ml-2">{{ \App\Support\LocalDate::inBogota($bitacora->created_at)?->locale('es')->translatedFormat('d M, H:i \h') }}</span>
                         </div>
                         <p class="text-[10px] font-bold uppercase tracking-wide text-red-700 mb-1">{{ $accionVisible }}</p>
                         <p class="text-xs text-gray-600 {{ $detalleCorreccion ? '' : 'truncate' }}">{{ $bitacora->descripcion }}</p>
-                        @if($bitacora->accion === 'Anotación de Consultor' && !empty($bitacora->metadata['anotacion']))
+                        <x-case-audit-details :event="$bitacora" compact />
+                        @if(!$tipoAuditoria && $bitacora->accion === 'Anotación de Consultor' && !empty($bitacora->metadata['anotacion']))
                             <div class="mt-2 rounded border border-blue-200 bg-blue-50 p-2 text-[11px] text-gray-700">
                                 <p class="font-bold text-blue-800">Anotación de seguimiento</p>
                                 <p class="mt-1 whitespace-pre-line">{{ $bitacora->metadata['anotacion'] }}</p>
@@ -547,7 +556,7 @@
                             </div>
                         @endif
                         @include('components.task-correction-audit-details', ['detalle' => $detalleCorreccion, 'compacto' => true])
-                        @if(!$detalleCorreccion)
+                        @if(!$detalleCorreccion && !$tipoAuditoria)
                         @if(!empty($bitacora->metadata) && isset($bitacora->metadata['observacion']))
                             <div class="mt-1.5 p-1.5 bg-yellow-50/50 border border-yellow-100 rounded text-gray-700 italic text-[10px] truncate">
                                 <span class="font-semibold text-gray-900 not-italic"><i data-lucide="message-square" style="width:10px;height:10px;display:inline;margin-top:-2px;"></i> Obs:</span> 

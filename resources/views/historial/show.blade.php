@@ -62,6 +62,10 @@
     </div>
 </div>
 
+<div class="mb-6">
+    <x-case-audit-summary :summary="$auditSummary" />
+</div>
+
 <!-- FILTROS -->
 <div class="filter-card">
     <form method="GET" action="{{ route('historial.show', $caso->id) }}" class="flex flex-col sm:flex-row gap-4">
@@ -137,6 +141,8 @@
                     $badgeClass = 'bg-gray-badge';
                 }
                 $detalleCorreccion = \App\Support\TaskCorrectionAuditPresenter::make($evento);
+                $tipoAuditoria = is_array($evento->metadata) ? ($evento->metadata['event_type'] ?? null) : null;
+                $actorAuditoria = is_array($evento->metadata) ? ($evento->metadata['actor'] ?? []) : [];
             @endphp
 
             <div id="audit-event-{{ $evento->id }}" data-audit-action="{{ $evento->accion }}" class="timeline-item {{ $claseEvento }}">
@@ -156,9 +162,11 @@
                     <div class="event-desc text-sm mt-1">
                         {{ $evento->descripcion }}
 
+                        <x-case-audit-details :event="$evento" />
+
                         @include('components.task-correction-audit-details', ['detalle' => $detalleCorreccion, 'compacto' => false])
                         
-                        @if(!$detalleCorreccion && !empty($evento->metadata) && isset($evento->metadata['observacion']))
+                        @if(!$detalleCorreccion && !$tipoAuditoria && !empty($evento->metadata) && isset($evento->metadata['observacion']))
                             <div class="mt-2 p-2.5 bg-yellow-50/50 border border-yellow-100 rounded text-gray-700 italic text-xs">
                                 <span class="font-semibold text-gray-900 not-italic block mb-0.5"><i data-lucide="message-square" style="width:12px;height:12px;display:inline;margin-top:-2px;"></i> Observación:</span> 
                                 {{ $evento->metadata['observacion'] }}
@@ -169,13 +177,13 @@
                     <div class="event-meta">
                         <div style="display: flex; align-items: center;">
                             <i data-lucide="user"></i>
-                            {{ $evento->usuario ? $evento->usuario->name : 'Sistema' }}
+                            {{ $actorAuditoria['nombre'] ?? $evento->usuario?->name ?? 'Sistema' }}
                         </div>
                         
-                        @if($evento->usuario && $evento->usuario->role)
+                        @if(($actorAuditoria['rol'] ?? null) || ($evento->usuario && $evento->usuario->role))
                             <div style="display: flex; align-items: center;">
                                 <i data-lucide="shield"></i>
-                                {{ $evento->usuario->role->nombre }}
+                                {{ $actorAuditoria['rol'] ?? $evento->usuario?->role?->nombre }}
                             </div>
                         @endif
 

@@ -10,6 +10,7 @@ use App\Services\WebPushService;
 use GuzzleHttp\Psr7\Request as PsrRequest;
 use GuzzleHttp\Psr7\Response as PsrResponse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Minishlink\WebPush\MessageSentReport;
@@ -93,7 +94,6 @@ class WebPushTest extends TestCase
             'leido' => false,
             'created_at' => now(),
         ]);
-
         $payload = app(WebPushService::class)->payload($notification);
 
         $this->assertSame('Sistema Jurídico', $payload['title']);
@@ -131,5 +131,54 @@ class WebPushTest extends TestCase
 
         $this->assertSame(0, (new WebPushService($client))->send($notification));
         $this->assertDatabaseMissing('push_subscriptions', ['id' => $stored->id]);
+    }
+
+    public function test_same_logical_notification_is_sent_once_per_endpoint(): void
+    {
+        Cache::flush();
+        config()->set('webpush.vapid', ['subject' => 'https://example.test', 'public_key' => 'public', 'private_key' => 'private']);
+        $user = User::factory()->create(['activo' => true]);
+        foreach (['one', 'two'] as $suffix) {
+            $endpoint = "https://push.example.test/{$suffix}";
+            PushSubscription::create([
+                'user_id' => $user->id,
+                'endpoint_hash' => PushSubscription::hashEndpoint($endpoint),
+                'endpoint' => $endpoint,
+                'p256dh' => str_repeat('p', 88),
+                'auth' => str_repeat('a', 24),
+                'content_encoding' => 'aes128gcm',
+            ]);
+        }
+        $notification = Notificacion::create([
+            'user_id' => $user->id,
+            'tipo' => 'tarea',
+            'titulo' => 'Nueva tarea',
+            'mensaje' => 'Tarea asignada',
+            'leido' => false,
+            'created_at' => now(),
+        ]);
+        $messageNotification = Notificacion::create([
+            'user_id' => $user->id,
+            'tipo' => 'mensaje',
+            'titulo' => 'Nuevo mensaje',
+            'mensaje' => 'Mensaje recibido',
+            'leido' => false,
+            'created_at' => now(),
+        ]);
+        $report = new MessageSentReport(
+            new PsrRequest('POST', 'https://push.example.test/sent'),
+            new PsrResponse(201),
+            true,
+        );
+        $client = Mockery::mock(WebPush::class);
+        $client->shouldReceive('setDefaultOptions')->times(4)->andReturnSelf();
+        $client->shouldReceive('sendOneNotification')->times(4)->andReturn($report);
+        $service = new WebPushService($client);
+
+        $this->assertSame(2, $service->send($notification));
+        $this->assertSame(0, $service->send($notification));
+        $this->assertSame('Tienes un nuevo mensaje.', $service->payload($messageNotification)['body']);
+        $this->assertSame(2, $service->send($messageNotification));
+        $this->assertSame(0, $service->send($messageNotification));
     }
 }

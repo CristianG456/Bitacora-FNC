@@ -84,6 +84,24 @@ class AnsService
             : (int) $hoy->diffInDays($limite, false);
     }
 
+    public function estadoEnFecha(Caso $caso, ?CarbonInterface $fecha = null): ?string
+    {
+        $restantes = $this->diasRestantes($caso, $fecha);
+        if ($restantes === null) {
+            return null;
+        }
+        if ($caso->estado === 'Finalizado' && in_array($caso->ans_estado, ['cumplido', 'incumplido'], true)) {
+            return $caso->ans_estado;
+        }
+
+        return match (true) {
+            $restantes < 0 => 'vencido',
+            $restantes <= 1 => 'critico',
+            $restantes <= 5 => 'preventivo',
+            default => 'vigente',
+        };
+    }
+
     public function cerrarSeguimiento(Caso $caso, ?CarbonInterface $fecha = null): void
     {
         if (!$caso->ans_fecha_limite) {

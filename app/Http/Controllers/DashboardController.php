@@ -2,9 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Bitacora;
 use App\Models\Caso;
+use App\Models\User;
+use App\Services\CaseAuditService;
+use App\Support\LocalDate;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
+use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
@@ -15,11 +23,7 @@ class DashboardController extends Controller
         $esAdmin = $user->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor', 'Abogado']);
 
         // ─── Estadísticas de casos ─────────────────────────────────
-        $baseQuery = $esAdmin
-            ? Caso::query()
-            : Caso::whereHas('usuarios', fn($q) => $q
-                ->where('users.id', $user->id)
-                ->where('caso_usuario.activo', true));
+        $baseQuery = $this->casosVisiblesPara($user);
 
         $totalCasos    = (clone $baseQuery)->count();
         $enProceso     = (clone $baseQuery)->where('estado', 'En proceso')->count();
@@ -68,5 +72,115 @@ class DashboardController extends Controller
             'tituloListado',
             'notificacionesSinLeer'
         ));
+    }
+
+    /**
+     * Busca únicamente dentro de los casos que el usuario ya puede consultar.
+     * La descripción se compara después de descifrarla: no se duplica contenido
+     * sensible en una columna auxiliar de texto plano.
+     */
+    public function buscarCasos(Request $request): JsonResponse
+    {
+        if (is_string($request->query('q'))) {
+            $request->merge(['q' => trim($request->query('q'))]);
+        }
+        $validated = $request->validate(['q' => ['required', 'string', 'min:2', 'max:100']]);
+        $termino = $this->normalizarBusqueda($validated['q']);
+        $resultados = [];
+
+        $casos = $this->casosVisiblesPara($request->user())
+            ->with(['tipo', 'subtipo', 'solicitante', 'usuarios.role'])
+            ->latest('casos.created_at')
+            ->lazy(100);
+
+        foreach ($casos as $caso) {
+            if (!$this->casoCoincide($caso, $termino)) {
+                continue;
+            }
+
+            $resultados[] = [
+                'id' => $caso->id,
+                'radicado' => $caso->radicado,
+                'tipo' => $caso->tipo?->nombre ?? 'Sin tipo',
+                'subtipo' => $caso->subtipo?->nombre,
+                'solicitante' => $caso->solicitanteNombreActual() ?? 'Sin solicitante',
+                'estado' => $caso->estado,
+                'fecha' => LocalDate::inBogota($caso->created_at)?->format('d/m/Y'),
+                'descripcion' => Str::limit((string) $caso->descripcion, 150),
+                'responsables' => $caso->usuarios->pluck('name')->values()->all(),
+                'bitacora_url' => route('dashboard.casos.bitacora', $caso, false),
+            ];
+
+            if (count($resultados) === 12) {
+                break;
+            }
+        }
+
+        return response()->json([
+            'data' => $resultados,
+            'message' => empty($resultados) ? 'No se encontraron casos con ese criterio.' : null,
+        ]);
+    }
+
+    /**
+     * Carga la bitácora sin ejecutar los efectos secundarios de la vista del caso.
+     */
+    public function bitacoraCaso(Request $request, int $caso): View
+    {
+        $caso = $this->casosVisiblesPara($request->user())
+            ->with(['tipo', 'subtipo', 'solicitante', 'solicitanteTipoDocumento', 'usuarios.role'])
+            ->whereKey($caso)
+            ->firstOrFail();
+
+        $eventos = Bitacora::with(['usuario.role'])
+            ->where('caso_id', $caso->id)
+            ->oldest('created_at')
+            ->oldest('id')
+            ->get();
+        $auditSummary = app(CaseAuditService::class)->resumen($caso);
+
+        return view('dashboard.case-audit-modal-content', compact('caso', 'eventos', 'auditSummary'));
+    }
+
+    private function casosVisiblesPara(User $user): Builder
+    {
+        if ($user->tieneAlgunRol(['Administrador', 'Juridica', 'Consultor', 'Abogado'])) {
+            return Caso::query();
+        }
+
+        return Caso::whereHas('usuarios', fn ($query) => $query
+            ->where('users.id', $user->id)
+            ->where('caso_usuario.activo', true));
+    }
+
+    private function casoCoincide(Caso $caso, string $termino): bool
+    {
+        $fechas = collect([$caso->created_at, $caso->fecha_solicitud, $caso->fecha_inicio, $caso->fecha_fin])
+            ->filter()
+            ->flatMap(fn ($fecha) => [$fecha->format('Y-m-d'), $fecha->format('d/m/Y'), $fecha->format('d-m-Y')]);
+
+        $valores = collect([
+            $caso->radicado,
+            $caso->solicitanteNombreActual(),
+            $caso->solicitanteDocumentoActual(),
+            $caso->solicitanteTipoActual(),
+            $caso->tipo?->nombre,
+            $caso->tipo?->codigo,
+            $caso->subtipo?->nombre,
+            $caso->subtipo?->codigo,
+            $caso->descripcion,
+            $caso->estado,
+        ])->merge($fechas)->merge($caso->usuarios->flatMap(fn (User $responsable) => [
+            $responsable->name,
+            $responsable->role?->nombre,
+        ]));
+
+        return $valores->filter(fn ($valor) => is_scalar($valor))
+            ->contains(fn ($valor) => str_contains($this->normalizarBusqueda((string) $valor), $termino));
+    }
+
+    private function normalizarBusqueda(string $valor): string
+    {
+        return Str::lower(Str::ascii(trim($valor)));
     }
 }

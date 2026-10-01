@@ -1,8 +1,14 @@
+FROM composer:latest AS frontend-vendor
+WORKDIR /build
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-interaction --no-scripts --no-autoloader
+
 FROM node:22-alpine AS frontend
 WORKDIR /build
 COPY package.json package-lock.json ./
 RUN npm ci
-COPY vite.config.js ./
+COPY vite.config.js postcss.config.js tailwind.config.js ./
+COPY --from=frontend-vendor /build/vendor/laravel/framework/src/Illuminate/Pagination/resources/views ./vendor/laravel/framework/src/Illuminate/Pagination/resources/views
 COPY resources ./resources
 COPY public ./public
 RUN rm -rf /build/public/build && npm run build

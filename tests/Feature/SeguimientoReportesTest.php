@@ -16,6 +16,7 @@ use App\Services\SeguimientoReportService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
+use ZipArchive;
 
 class SeguimientoReportesTest extends TestCase
 {
@@ -74,12 +75,19 @@ class SeguimientoReportesTest extends TestCase
         $pdf = $this->actingAs($consultor)->get(route('seguimiento.exportar.pdf', $filtros));
         $pdf->assertOk()->assertSee('MULTI-UNO')->assertSee('MULTI-DOS')->assertDontSee('MULTI-TRES')
             ->assertSee('Derecho de petición, Contrato');
-        $csv = $this->actingAs($consultor)->get(route('seguimiento.exportar.excel', $filtros));
-        $contenido = $csv->assertOk()->assertDownload()->streamedContent();
-        $this->assertStringContainsString('MULTI-UNO', $contenido);
-        $this->assertStringContainsString('MULTI-DOS', $contenido);
-        $this->assertStringNotContainsString('MULTI-TRES', $contenido);
-        $this->assertStringContainsString('Derecho de petición, Contrato', $contenido);
+        $xlsx = $this->actingAs($consultor)->get(route('seguimiento.exportar.excel', $filtros));
+        $contenido = $xlsx->assertOk()->assertDownload()->streamedContent();
+        $this->assertStringContainsString('spreadsheetml.sheet', $xlsx->headers->get('content-type'));
+        $hojas = $this->xlsxSheets($contenido);
+        $this->assertStringContainsString('Resumen', $hojas['workbook']);
+        $this->assertStringContainsString('Detalle de casos', $hojas['workbook']);
+        $this->assertStringContainsString('Responsables', $hojas['workbook']);
+        $this->assertStringContainsString('MULTI-UNO', $hojas['detalle']);
+        $this->assertStringContainsString('MULTI-DOS', $hojas['detalle']);
+        $this->assertStringNotContainsString('MULTI-TRES', $hojas['detalle']);
+        $this->assertStringContainsString('Derecho de petición, Contrato', $hojas['resumen']);
+        $this->assertStringContainsString('<autoFilter', $hojas['detalle']);
+        $this->assertStringContainsString('ySplit=', $hojas['detalle']);
     }
 
     public function test_web_detail_is_paginated_while_exports_keep_all_filtered_cases(): void
@@ -99,9 +107,10 @@ class SeguimientoReportesTest extends TestCase
 
         $pdf = $this->actingAs($consultor)->get(route('seguimiento.exportar.pdf', $filtros));
         $pdf->assertOk()->assertSee('PAG-13')->assertSee('PAG-01');
-        $csv = $this->actingAs($consultor)->get(route('seguimiento.exportar.excel', $filtros))->streamedContent();
-        $this->assertStringContainsString('PAG-13', $csv);
-        $this->assertStringContainsString('PAG-01', $csv);
+        $xlsx = $this->actingAs($consultor)->get(route('seguimiento.exportar.excel', $filtros))->streamedContent();
+        $hojas = $this->xlsxSheets($xlsx);
+        $this->assertStringContainsString('PAG-13', $hojas['detalle']);
+        $this->assertStringContainsString('PAG-01', $hojas['detalle']);
     }
 
     public function test_firma_is_rejected_for_every_non_lawyer_without_side_effects_and_allowed_for_lawyer(): void
@@ -183,15 +192,71 @@ class SeguimientoReportesTest extends TestCase
             ->assertSessionHasErrors('responsable_id');
         $this->actingAs($consultor)->get(route('seguimiento.responsable', $uno))->assertOk()
             ->assertSee('Revisión documental pendiente')->assertSee('Último movimiento');
-        $csv = $this->actingAs($consultor)->get(route('seguimiento.exportar.excel', ['tipo_id' => $this->tipo->id]));
-        $csv->assertOk()->assertDownload();
-        $this->assertStringContainsString('DP-UNO', $csv->streamedContent());
-        $this->assertStringNotContainsString('CT-DOS', $csv->streamedContent());
+        $xlsx = $this->actingAs($consultor)->get(route('seguimiento.exportar.excel', ['tipo_id' => $this->tipo->id]));
+        $xlsx->assertOk()->assertDownload();
+        $hojas = $this->xlsxSheets($xlsx->streamedContent());
+        $this->assertStringContainsString('DP-UNO', $hojas['detalle']);
+        $this->assertStringNotContainsString('CT-DOS', $hojas['detalle']);
         $pdf = $this->actingAs($consultor)->get(route('seguimiento.exportar.pdf', ['tipo_id' => $this->tipo->id]));
         $pdf->assertOk()->assertSee('Reporte de Seguimiento y Gestión')->assertSee('DP-UNO')->assertDontSee('CT-DOS')
             ->assertSee('Casos que requieren atención')->assertSee('institutional-watermark', false)
             ->assertSee('data:image/png;base64,', false)->assertDontSee('https://', false);
         CarbonImmutable::setTestNow();
+    }
+
+    public function test_excel_is_valid_with_special_characters_and_stores_text_as_inline_strings(): void
+    {
+        $consultor = $this->user('Consultor', 'Consultora');
+        $responsable = $this->user('Usuario', 'José Andrés Peña');
+        $textoFormula = $this->user('Usuario', '=No es una fórmula');
+        $this->tipo->update(['nombre' => 'Contratos & Convenios']);
+        $this->subtipo->update(['nombre' => 'Pérez <Gómez>']);
+        $caso = $this->caso($consultor, 'XLSX-SEGURA');
+        $this->assign($caso, $responsable);
+        $this->assign($caso, $textoFormula);
+        $caso->tareas()->create([
+            'user_id' => $responsable->id,
+            'descripcion' => 'Revisión <jurídica> & firma',
+            'estado' => 'Pendiente',
+            'fecha_inicio' => '2026-09-20',
+        ]);
+
+        $contenido = $this->actingAs($consultor)
+            ->get(route('seguimiento.exportar.excel'))
+            ->assertOk()->assertDownload()->streamedContent();
+        $hojas = $this->xlsxSheets($contenido);
+
+        $this->assertXlsxXmlIsValid($hojas);
+        $this->assertStringContainsString('Contratos &amp; Convenios', $hojas['detalle']);
+        $this->assertStringContainsString('Pérez &lt;Gómez&gt;', $hojas['detalle']);
+        $this->assertStringContainsString('José Andrés Peña', $hojas['detalle']);
+        $this->assertStringContainsString('=No es una fórmula', $hojas['detalle']);
+        $this->assertStringContainsString('Revisión &lt;jurídica&gt; &amp; firma', $hojas['detalle']);
+        $this->assertStringContainsString('t=', $hojas['detalle']);
+        $this->assertStringNotContainsString('<f>', $hojas['detalle']);
+        $this->assertTrue(
+            strpos($hojas['detalle'], '<autoFilter') < strpos($hojas['detalle'], '<mergeCells'),
+            'OpenXML exige autoFilter antes de mergeCells.'
+        );
+        $this->assertTrue(
+            strpos($hojas['responsables'], '<autoFilter') < strpos($hojas['responsables'], '<mergeCells'),
+            'OpenXML exige autoFilter antes de mergeCells.'
+        );
+    }
+
+    public function test_excel_without_results_keeps_the_three_valid_sheets_and_headers(): void
+    {
+        $consultor = $this->user('Consultor', 'Consultora');
+        $sinCasos = TipoProceso::create(['nombre' => 'Sin casos', 'codigo' => 'VAC', 'activo' => true]);
+
+        $contenido = $this->actingAs($consultor)
+            ->get(route('seguimiento.exportar.excel', ['tipo_id' => $sinCasos->id]))
+            ->assertOk()->assertDownload()->streamedContent();
+        $hojas = $this->xlsxSheets($contenido);
+
+        $this->assertXlsxXmlIsValid($hojas);
+        $this->assertStringContainsString('Radicado', $hojas['detalle']);
+        $this->assertStringContainsString('Responsable', $hojas['responsables']);
     }
 
     public function test_global_history_uses_the_reusable_institutional_layout(): void
@@ -260,5 +325,34 @@ class SeguimientoReportesTest extends TestCase
     private function assign(Caso $caso,User $user): void
     {
         $caso->usuarios()->attach($user->id,['estado' => 'Pendiente', 'activo' => true, 'fecha_asignacion' => '2026-09-20 09:00:00']);
+    }
+
+    private function xlsxSheets(string $contenido): array
+    {
+        $archivo = tempnam(sys_get_temp_dir(), 'seguimiento-xlsx-');
+        file_put_contents($archivo, $contenido);
+        $zip = new ZipArchive;
+
+        try {
+            $this->assertTrue($zip->open($archivo) === true);
+
+            return [
+                'workbook' => $zip->getFromName('xl/workbook.xml'),
+                'resumen' => $zip->getFromName('xl/worksheets/sheet1.xml'),
+                'detalle' => $zip->getFromName('xl/worksheets/sheet2.xml'),
+                'responsables' => $zip->getFromName('xl/worksheets/sheet3.xml'),
+            ];
+        } finally {
+            $zip->close();
+            @unlink($archivo);
+        }
+    }
+
+    private function assertXlsxXmlIsValid(array $hojas): void
+    {
+        foreach ($hojas as $nombre => $xml) {
+            $dom = new \DOMDocument;
+            $this->assertTrue($dom->loadXML($xml), $nombre.' debe ser XML válido.');
+        }
     }
 }
