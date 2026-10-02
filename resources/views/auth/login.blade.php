@@ -194,6 +194,73 @@
         });
 
         const checkbox = document.getElementById('recuperar');
+        const loginForm = document.querySelector('form');
+        const emailInput = document.querySelector('input[name=email]');
+        const loginPasswordInput = document.querySelector('input[name=password]');
+        loginForm.autocomplete = 'on';
+        emailInput.autocomplete = 'username';
+        loginPasswordInput.autocomplete = 'current-password';
+
+        const domainSuggestions = document.createElement('div');
+        domainSuggestions.id = 'email-domain-suggestions';
+        domainSuggestions.className = 'mt-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2';
+        domainSuggestions.setAttribute('aria-label', 'Opciones para completar correo');
+        const domainLabel = document.createElement('span');
+        domainLabel.className = 'text-[11px] text-gray-500';
+        domainLabel.textContent = 'Completar correo:';
+        domainSuggestions.appendChild(domainLabel);
+        const domainOptions = document.createElement('div');
+        domainOptions.className = 'flex min-w-0 flex-wrap items-center gap-1.5 sm:flex-nowrap';
+        ['@cafedecolombia.com', '@cafedecolombia.com.co'].forEach(function (domain) {
+            const option = document.createElement('button');
+            option.type = 'button';
+            option.value = domain;
+            option.disabled = true;
+            option.className = 'email-domain-chip whitespace-nowrap rounded-full border border-[#9F1932]/20 bg-[#9F1932]/5 px-2 py-1 text-[10px] font-medium text-[#7A1525] transition hover:bg-[#9F1932]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9F1932] disabled:cursor-not-allowed disabled:opacity-40 sm:text-[11px]';
+            option.textContent = domain;
+            option.addEventListener('click', function () {
+                const localPart = emailInput.value.trim();
+                if (!localPart || localPart.includes('@')) return;
+                emailInput.value = localPart + option.value;
+                emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+                emailInput.focus();
+            });
+            domainOptions.appendChild(option);
+        });
+        domainSuggestions.appendChild(domainOptions);
+        emailInput.insertAdjacentElement('afterend', domainSuggestions);
+
+        function updateDomainSuggestions() {
+            const hasDomain = emailInput.value.includes('@');
+            const canComplete = emailInput.value.trim().length > 0 && !hasDomain;
+            domainSuggestions.classList.toggle('hidden', hasDomain);
+            domainSuggestions.querySelectorAll('button').forEach(function (option) {
+                option.disabled = !canComplete;
+            });
+        }
+        emailInput.addEventListener('input', updateDomainSuggestions);
+        updateDomainSuggestions();
+
+        const passwordWrapper = document.createElement('div');
+        passwordWrapper.className = 'relative';
+        loginPasswordInput.parentNode.insertBefore(passwordWrapper, loginPasswordInput);
+        passwordWrapper.appendChild(loginPasswordInput);
+        loginPasswordInput.classList.add('pr-20');
+        const passwordToggle = document.createElement('button');
+        passwordToggle.type = 'button';
+        passwordToggle.className = 'absolute inset-y-0 right-0 flex items-center px-3 text-xs font-semibold text-[#7A1525] hover:text-[#9F1932] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#9F1932]';
+        passwordToggle.textContent = 'Ver';
+        passwordToggle.setAttribute('aria-label', 'Ver contraseña');
+        passwordToggle.setAttribute('aria-pressed', 'false');
+        passwordToggle.addEventListener('click', function () {
+            const isVisible = loginPasswordInput.type === 'text';
+            loginPasswordInput.type = isVisible ? 'password' : 'text';
+            passwordToggle.textContent = isVisible ? 'Ver' : 'Ocultar';
+            passwordToggle.setAttribute('aria-label', isVisible ? 'Ver contraseña' : 'Ocultar contraseña');
+            passwordToggle.setAttribute('aria-pressed', String(!isVisible));
+            loginPasswordInput.focus();
+        });
+        passwordWrapper.appendChild(passwordToggle);
         const boton = document.getElementById('btnLogin');
         const campoPassword = document.getElementById('campoPassword');
         const passwordInput = document.querySelector('input[name="password"]');

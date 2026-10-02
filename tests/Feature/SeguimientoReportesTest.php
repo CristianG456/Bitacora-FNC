@@ -62,14 +62,14 @@ class SeguimientoReportesTest extends TestCase
             'hasta' => '2026-09-30',
         ];
 
-        $this->actingAs($consultor)->get(route('seguimiento.reportes', $filtros))
+        $this->actingAs($consultor)->get(route('seguimiento.reportes', $filtros + ['seccion' => 'detalle']))
             ->assertOk()->assertSee('MULTI-UNO')->assertSee('MULTI-DOS')->assertDontSee('MULTI-TRES')
-            ->assertSee('2 tipo(s) seleccionado(s)');
-        $this->actingAs($consultor)->get(route('seguimiento.reportes', ['tipo_ids' => [$tipoDos->id]]))
+            ->assertSee('Filtros activos');
+        $this->actingAs($consultor)->get(route('seguimiento.reportes', ['tipo_ids' => [$tipoDos->id], 'seccion' => 'detalle']))
             ->assertOk()->assertSee('MULTI-DOS')->assertDontSee('MULTI-UNO');
-        $this->actingAs($consultor)->get(route('seguimiento.reportes', $filtros + ['subtipo_id' => $subtipoDos->id]))
+        $this->actingAs($consultor)->get(route('seguimiento.reportes', $filtros + ['subtipo_id' => $subtipoDos->id, 'seccion' => 'detalle']))
             ->assertOk()->assertSee('MULTI-DOS')->assertDontSee('MULTI-UNO')->assertDontSee('MULTI-TRES');
-        $this->actingAs($consultor)->get(route('seguimiento.reportes'))
+        $this->actingAs($consultor)->get(route('seguimiento.reportes', ['seccion' => 'detalle']))
             ->assertOk()->assertSee('MULTI-UNO')->assertSee('MULTI-DOS')->assertSee('MULTI-TRES');
 
         $pdf = $this->actingAs($consultor)->get(route('seguimiento.exportar.pdf', $filtros));
@@ -99,10 +99,10 @@ class SeguimientoReportesTest extends TestCase
         }
         $filtros = ['tipo_ids' => [$this->tipo->id]];
 
-        $primera = $this->actingAs($consultor)->get(route('seguimiento.reportes', $filtros));
+        $primera = $this->actingAs($consultor)->get(route('seguimiento.reportes', $filtros + ['seccion' => 'detalle']));
         $primera->assertOk()->assertSee('Mostrando')->assertSee('1-10')->assertSee('de <strong class="text-gray-800">13</strong>', false)
             ->assertSee('PAG-13')->assertDontSee('PAG-01')->assertSee('casos_page=2', false);
-        $this->actingAs($consultor)->get(route('seguimiento.reportes', $filtros + ['casos_page' => 2]))
+        $this->actingAs($consultor)->get(route('seguimiento.reportes', $filtros + ['casos_page' => 2, 'seccion' => 'detalle']))
             ->assertOk()->assertSee('PAG-01')->assertDontSee('PAG-13');
 
         $pdf = $this->actingAs($consultor)->get(route('seguimiento.exportar.pdf', $filtros));
@@ -176,16 +176,16 @@ class SeguimientoReportesTest extends TestCase
         $otroSub = SubtipoProceso::create(['tipo_id' => $otroTipo->id, 'nombre' => 'Compra', 'codigo' => 'COM', 'activo' => true]);
         $otro = $this->caso($admin, 'CT-DOS', ['tipo_id' => $otroTipo->id, 'subtipo_id' => $otroSub->id, 'fecha_solicitud' => '2026-08-01', 'estado' => 'Finalizado', 'ans_estado' => 'cumplido']);
 
-        $pantalla = $this->actingAs($consultor)->get(route('seguimiento.index'));
+        $pantalla = $this->actingAs($consultor)->get(route('seguimiento.index', ['seccion' => 'detalle']));
         $pantalla->assertOk()->assertSee('DP-UNO')->assertSee('CT-DOS')->assertSee('1 días restantes');
         $datos = $this->app->make(SeguimientoReportService::class)->datos([]);
         $this->assertSame(2, $datos['resumen']['total']);
         $this->assertSame(1, $datos['responsables']->firstWhere('usuario.id', $uno->id)->casos_asociados);
         $this->assertSame(1, $datos['responsables']->firstWhere('usuario.id', $dos->id)->casos_asociados);
-        $this->actingAs($consultor)->get(route('seguimiento.reportes', ['tipo_id' => $this->tipo->id, 'estado' => 'Pendiente']))
+        $this->actingAs($consultor)->get(route('seguimiento.reportes', ['tipo_id' => $this->tipo->id, 'estado' => 'Pendiente', 'seccion' => 'detalle']))
             ->assertOk()->assertSee('DP-UNO')->assertDontSee('CT-DOS');
         foreach ([['responsable_id' => $uno->id], ['rol' => 'Abogado'], ['ans_estado' => 'preventivo'], ['desde' => '2026-09-01'], ['con_tareas_pendientes' => '1']] as $filtro) {
-            $this->actingAs($consultor)->get(route('seguimiento.reportes', $filtro))
+            $this->actingAs($consultor)->get(route('seguimiento.reportes', $filtro + ['seccion' => 'detalle']))
                 ->assertOk()->assertSee('DP-UNO')->assertDontSee('CT-DOS');
         }
         $this->actingAs($consultor)->get(route('seguimiento.reportes', ['responsable_id' => $admin->id]))
@@ -259,6 +259,41 @@ class SeguimientoReportesTest extends TestCase
         $this->assertStringContainsString('Responsable', $hojas['responsables']);
     }
 
+    public function test_internal_sections_preserve_filters_and_offer_safe_back_navigation(): void
+    {
+        $consultor = $this->user('Consultor', 'Consultora');
+        $responsable = $this->user('Usuario', 'Andrés Ruiz');
+        $tipoDos = TipoProceso::create(['nombre' => 'Contratos', 'codigo' => 'CTR', 'activo' => true]);
+        $subtipoDos = SubtipoProceso::create(['tipo_id' => $tipoDos->id, 'nombre' => 'General', 'codigo' => 'GEN2', 'activo' => true]);
+        $uno = $this->caso($consultor, 'UX-UNO', ['ans_estado' => 'critico']);
+        $dos = $this->caso($consultor, 'UX-DOS', ['tipo_id' => $tipoDos->id, 'subtipo_id' => $subtipoDos->id, 'ans_estado' => 'critico']);
+        $this->assign($uno, $responsable);
+        $this->assign($dos, $responsable);
+        $filtros = ['tipo_ids' => [$this->tipo->id, $tipoDos->id], 'estado' => 'Pendiente', 'ans_estado' => 'critico', 'responsable_id' => $responsable->id];
+
+        $this->actingAs($consultor)->get(route('seguimiento.index', $filtros))
+            ->assertOk()->assertSee('Resumen ejecutivo')->assertSee('Detalle de casos')
+            ->assertSee('data-tracking-section', false)
+            ->assertSee('tracking-type-picker', false)
+            ->assertDontSee('Resultados disponibles')
+            ->assertDontSee('tracking-module-grid', false);
+
+        foreach (['resumen' => 'tracking-metrics', 'tipos' => 'tracking-card-grid', 'responsables' => 'tracking-table', 'atencion' => 'tracking-attention-list', 'detalle' => 'tracking-case-grid'] as $seccion => $selector) {
+            $respuesta = $this->actingAs($consultor)->get(route('seguimiento.index', $filtros + ['seccion' => $seccion]));
+            $respuesta->assertOk()->assertSee($selector, false)->assertSee('Filtros activos')->assertSee('Modificar filtros')
+                ->assertSee('responsable_id='.$responsable->id, false)->assertSee('ans_estado=critico', false);
+        }
+
+        $this->actingAs($consultor)->get(route('seguimiento.index', $filtros + ['seccion' => 'detalle', 'volver' => 'tipos']))
+            ->assertOk()->assertSee('← Volver')->assertSee('seccion=tipos', false);
+        $this->actingAs($consultor)->get(route('seguimiento.index', $filtros + ['seccion' => 'detalle']))
+            ->assertOk()->assertSee('← Volver')->assertSee('Modificar filtros');
+        $this->actingAs($consultor)->get(route('seguimiento.index', $filtros + ['volver' => 'detalle']))
+            ->assertOk()->assertSee('← Volver')->assertSee('seccion=detalle', false);
+        $this->actingAs($consultor)->get(route('seguimiento.index', $filtros + ['seccion' => 'detalle', 'volver' => 'responsables,resumen']))
+            ->assertOk()->assertSee('seccion=responsables', false)->assertSee('volver=resumen', false);
+    }
+
     public function test_global_history_uses_the_reusable_institutional_layout(): void
     {
         $admin = $this->user('Administrador', 'Admin');
@@ -301,12 +336,19 @@ class SeguimientoReportesTest extends TestCase
             ->assertSee('tracking-filter-card', false)
             ->assertSee('name="tipo_ids[]"', false)
             ->assertSee('Selección múltiple')
-            ->assertSee('tracking-metrics', false)
-            ->assertSee('tracking-ans-grid', false)
-            ->assertSee('tracking-table', false)
-            ->assertSee('tracking-case-grid', false);
+            ->assertSee('data-tracking-parent', false)
+            ->assertSee('data-tracking-section', false)
+            ->assertSee('Seguimiento por responsable')
+            ->assertSee('Casos que requieren atenci', false)
+            ->assertDontSee('Resultados disponibles')
+            ->assertDontSee('tracking-module-grid', false);
 
-        $this->assertSame(1, substr_count($response->getContent(), 'Las exportaciones incluyen todo el resultado filtrado.'));
+        $detalle = $this->actingAs($consultor)->get(route('seguimiento.index', ['seccion' => 'detalle']));
+        $this->assertSame(1, substr_count($detalle->getContent(), 'Las exportaciones incluyen todo el resultado filtrado.'));
+        $this->assertLessThan(
+            strpos($detalle->getContent(), 'class=\'tracking-submodule-head\''),
+            strpos($detalle->getContent(), 'class=\'tracking-content-back\'')
+        );
         $this->assertStringContainsString('@media (max-width:639px)', file_get_contents(public_path('css/seguimiento-ui.css')));
     }
 

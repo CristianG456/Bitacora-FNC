@@ -102,3 +102,33 @@
 </div>
 
 @endsection
+
+@push('scripts')
+<script>
+    document.querySelectorAll('input[name=password], input[name=password_confirmation]').forEach(function (input) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'relative';
+        input.parentNode.insertBefore(wrapper, input);
+        wrapper.appendChild(input);
+        input.classList.add('pr-20');
+
+        const isConfirmation = input.name === 'password_confirmation';
+        const label = isConfirmation ? 'confirmación de contraseña' : 'contraseña';
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'absolute inset-y-0 right-0 flex items-center px-3 text-xs font-semibold text-[#7A1525] hover:text-[#9F1932] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#9F1932]';
+        toggle.textContent = 'Ver';
+        toggle.setAttribute('aria-label', 'Ver ' + label);
+        toggle.setAttribute('aria-pressed', 'false');
+        toggle.addEventListener('click', function () {
+            const isVisible = input.type === 'text';
+            input.type = isVisible ? 'password' : 'text';
+            toggle.textContent = isVisible ? 'Ver' : 'Ocultar';
+            toggle.setAttribute('aria-label', (isVisible ? 'Ver ' : 'Ocultar ') + label);
+            toggle.setAttribute('aria-pressed', String(!isVisible));
+            input.focus();
+        });
+        wrapper.appendChild(toggle);
+    });
+</script>
+@endpush

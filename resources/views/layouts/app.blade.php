@@ -415,6 +415,95 @@
         setMobileDrawer(false);
     }
 
+    function setTrackingMenuExpanded(parent, expanded) {
+        const submenu = parent.nextElementSibling;
+        parent.classList.toggle('tracking-parent-open', expanded);
+        parent.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        if (submenu?.matches('[data-tracking-submenu]')) submenu.hidden = !expanded;
+    }
+
+    function initializeTrackingMenus() {
+        const definitions = [
+            ['filters', 'Filtros'],
+            ['resumen', 'Resumen ejecutivo'],
+            ['tipos', 'Casos por tipo'],
+            ['responsables', 'Seguimiento por responsable'],
+            ['atencion', 'Casos que requieren atenci\u00f3n'],
+            ['detalle', 'Detalle de casos'],
+        ];
+        const selectors = ['.sidebar-nav .nav-item[href]', '.mobile-drawer .drawer-nav-item[href]'];
+
+        selectors.forEach(selector => {
+            const parent = [...document.querySelectorAll(selector)].find(link => {
+                return new URL(link.href, window.location.origin).pathname === '/seguimiento';
+            });
+            if (!parent || parent.dataset.trackingParent) return;
+
+            parent.dataset.trackingParent = '';
+            parent.setAttribute('aria-expanded', 'false');
+            parent.classList.add('tracking-parent');
+
+            const chevron = document.createElement('span');
+            chevron.className = 'tracking-chevron';
+            chevron.setAttribute('aria-hidden', 'true');
+            chevron.textContent = '\u203a';
+            parent.appendChild(chevron);
+
+            const submenu = document.createElement('div');
+            submenu.className = 'tracking-submenu';
+            submenu.dataset.trackingSubmenu = '';
+            submenu.hidden = true;
+            definitions.forEach(([section, label]) => {
+                const link = document.createElement('a');
+                link.className = 'tracking-subitem';
+                link.dataset.trackingSection = section;
+                link.href = '/seguimiento';
+                link.textContent = label;
+                submenu.appendChild(link);
+            });
+            parent.insertAdjacentElement('afterend', submenu);
+
+            parent.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                setTrackingMenuExpanded(parent, parent.getAttribute('aria-expanded') !== 'true');
+            });
+        });
+    }
+
+    window.updateTrackingSidebar = function (modulePath) {
+        const url = new URL(modulePath, window.location.origin);
+        const insideTracking = url.pathname === '/seguimiento' || url.pathname.startsWith('/seguimiento/');
+        const currentSection = insideTracking ? (url.searchParams.get('seccion') || 'filters') : null;
+        const validSections = ['filters', 'resumen', 'tipos', 'responsables', 'atencion', 'detalle'];
+        const backSections = (url.searchParams.get('volver') || '').split(',').filter(section => validSections.includes(section));
+        const filters = new URLSearchParams(url.searchParams);
+        filters.delete('seccion');
+        filters.delete('volver');
+        filters.delete('casos_page');
+
+        document.querySelectorAll('[data-tracking-parent]').forEach(parent => {
+            if (insideTracking) setTrackingMenuExpanded(parent, true);
+            parent.classList.remove('active');
+            parent.classList.toggle('tracking-parent-current', insideTracking);
+        });
+
+        document.querySelectorAll('[data-tracking-section]').forEach(link => {
+            const destination = link.dataset.trackingSection;
+            const params = new URLSearchParams(filters);
+            if (destination !== 'filters') params.set('seccion', destination);
+            if (insideTracking && currentSection !== 'filters' && destination !== currentSection) {
+                params.set('volver', [currentSection, ...backSections].join(','));
+            }
+            link.href = '/seguimiento' + (params.toString() ? '?' + params.toString() : '');
+            link.classList.toggle('active', insideTracking && destination === currentSection);
+            if (insideTracking && destination === currentSection) link.setAttribute('aria-current', 'page');
+            else link.removeAttribute('aria-current');
+        });
+    };
+
+    initializeTrackingMenus();
+
     document.addEventListener('keydown', function (event) {
         if (event.key === 'Escape') {
             closeMobileDrawer();

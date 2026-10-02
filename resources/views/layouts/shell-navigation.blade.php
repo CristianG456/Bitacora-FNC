@@ -100,6 +100,7 @@
     }
 
     function updateActiveNavigation(path) {
+        const activePath = new URL(path, location.origin).pathname;
         const groups = [
             '.sidebar-nav .nav-item[href]',
             '.bottom-nav .bottom-nav-item[href]',
@@ -110,7 +111,7 @@
             const links = [...document.querySelectorAll(selector)];
             const matches = links.filter(link => {
                 const linkPath = new URL(link.href, location.origin).pathname;
-                return path === linkPath || (linkPath !== '/dashboard' && path.startsWith(linkPath + '/'));
+                return activePath === linkPath || (linkPath !== '/dashboard' && activePath.startsWith(linkPath + '/'));
             });
             const bestLength = Math.max(0, ...matches.map(link => new URL(link.href, location.origin).pathname.length));
 
@@ -122,6 +123,7 @@
 
         const drawerHasActiveItem = Boolean(document.querySelector('.mobile-drawer .drawer-nav-item.active'));
         document.querySelector('[data-mobile-more]')?.classList.toggle('active', drawerHasActiveItem);
+        window.updateTrackingSidebar?.(path);
     }
 
     async function renderResponse(response, requestedPath, pushHistory) {
@@ -161,7 +163,7 @@
         const finalPath = pathOf(response.url || requestedPath);
         currentModule = finalPath === '/' ? '/dashboard' : finalPath;
         sessionStorage.setItem('current_module', currentModule);
-        updateActiveNavigation(new URL(currentModule, location.origin).pathname);
+        updateActiveNavigation(currentModule);
         executeScripts(scriptNodes);
         showFlash(parsed);
 
@@ -258,7 +260,7 @@
 
     if (directModule) {
         sessionStorage.setItem('current_module', currentModule);
-        updateActiveNavigation(new URL(currentModule, location.origin).pathname);
+        updateActiveNavigation(currentModule);
         if (initialScripts) executeScripts([...initialScripts.content.querySelectorAll('script')]);
     } else if (currentModule !== '/dashboard') {
         loadModule(currentModule, { pushHistory: false }).catch(() => loadModule('/dashboard', { pushHistory: false }));

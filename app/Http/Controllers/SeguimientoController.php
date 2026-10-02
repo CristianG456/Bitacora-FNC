@@ -20,7 +20,7 @@ class SeguimientoController extends Controller
 
     public function index(Request $request)
     {
-        return view('seguimiento.index', $this->datosWeb($request, $this->filtros($request)));
+        return $this->vistaModulo($request);
     }
 
     public function responsable(Request $request, User $responsable)
@@ -41,7 +41,7 @@ class SeguimientoController extends Controller
 
     public function reportes(Request $request)
     {
-        return view('seguimiento.reportes', $this->datosWeb($request, $this->filtros($request)));
+        return $this->vistaModulo($request);
     }
 
     public function exportarPdf(Request $request)
@@ -194,5 +194,15 @@ class SeguimientoController extends Controller
         $datos['casos']->appends($request->except('casos_page'));
 
         return $datos;
+    }
+
+    private function vistaModulo(Request $request)
+    {
+        $secciones = ['resumen', 'tipos', 'responsables', 'atencion', 'detalle'];
+        $seccion = $request->string('seccion')->toString();
+
+        return view('seguimiento.index', $this->datosWeb($request, $this->filtros($request)) + [
+            'seccion' => in_array($seccion, $secciones, true) ? $seccion : null,
+        ]);
     }
 }
