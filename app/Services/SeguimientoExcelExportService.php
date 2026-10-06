@@ -61,17 +61,18 @@ class SeguimientoExcelExportService
     {
         $filas = [
             ['Detalle de casos'], ['Todos los casos que cumplen los filtros aplicados.'], [],
-            ['Radicado', 'Tipo', 'Subtipo', 'Estado', 'Fecha solicitud', 'Fecha límite', 'Estado ANS', 'Restante / retraso', 'Responsables', 'Tareas pendientes', 'Tarea pendiente más antigua', 'Responsable de tarea', 'Último movimiento'],
+            ['Radicado', 'Asunto', 'Tipo', 'Subtipo', 'Estado', 'Fecha solicitud', 'Fecha límite', 'Estado ANS', 'Restante / retraso', 'Responsables', 'Tareas pendientes', 'Tarea pendiente más antigua', 'Responsable tarea', 'Último movimiento'],
         ];
         foreach ($casos as $caso) {
             $dias = $caso->dias_restantes_calculados;
-            $filas[] = [$caso->radicado, $caso->tipo?->nombre, $caso->subtipo?->nombre, $caso->estado,
+            $asunto = filled(trim((string) $caso->descripcion)) ? trim((string) $caso->descripcion) : 'Sin asunto registrado';
+            $filas[] = [$caso->radicado, $asunto, $caso->tipo?->nombre, $caso->subtipo?->nombre, $caso->estado,
                 $caso->fecha_solicitud?->format('d/m/Y'), $caso->ans_fecha_limite?->format('d/m/Y'), strtoupper((string) $caso->ans_estado),
                 $dias === null ? 'Sin ANS' : ($dias >= 0 ? $dias.' restantes' : abs($dias).' de retraso'), $caso->usuarios->pluck('name')->join(', '),
                 ['n' => $caso->tareas_pendientes_count], $caso->tareaPendienteMasAntigua?->descripcion,
                 $caso->tareaPendienteMasAntigua?->usuario?->name, $caso->ultimo_movimiento?->format('d/m/Y H:i')];
         }
-        return $this->sheet($filas, [21,24,23,16,16,16,16,20,34,18,36,27,20], ['A1:M1', 'A2:M2'], [1 => 1, 2 => 5, 4 => 3], 4, 'A4:M'.max(4, count($filas)));
+        return $this->sheet($filas, [21,38,24,23,16,16,16,16,20,34,18,36,27,20], ['A1:N1', 'A2:N2'], [1 => 1, 2 => 5, 4 => 3], 4, 'A4:N'.max(4, count($filas)));
     }
 
     private function responsables(Collection $responsables): string

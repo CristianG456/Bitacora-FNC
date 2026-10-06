@@ -112,6 +112,31 @@ class CaseAuditTrailTest extends TestCase
         $this->assertSame($cantidad, Bitacora::where('caso_id', $caso->id)->count());
     }
 
+    public function test_history_pdf_presents_audit_metadata_without_technical_json(): void
+    {
+        $admin = $this->user('Administrador', 'Admin');
+        $actor = $this->user('Juridica', 'Sara Cano');
+        $responsable = $this->user('Usuario', 'Andrés Ruiz');
+        $caso = $this->caso($admin, '2026-10-06');
+
+        Bitacora::registrar('Tareas', 'Crear', 'Asignación registrada', $caso->id, 27, $responsable->id, [
+            'audit_version' => 1,
+            'event_type' => 'task_assigned',
+            'actor' => ['id' => $actor->id, 'nombre' => $actor->name, 'rol' => 'Juridica'],
+            'responsable' => ['id' => $responsable->id, 'nombre' => $responsable->name, 'rol' => 'Usuario'],
+            'tarea' => ['id' => 27, 'descripcion' => 'Revisión jurídica', 'tipo' => 'Normal', 'estado' => 'Pendiente'],
+            'caso' => ['radicado' => $caso->radicado],
+            'ans' => ['estado' => 'critico', 'dias_configurados' => 4, 'tipo_dias' => 'calendario', 'fecha_limite' => '2026-10-06', 'dias_restantes' => 1],
+        ]);
+
+        $this->actingAs($admin)->get(route('historial.exportar.pdf', ['caso_id' => $caso->id]))
+            ->assertOk()->assertSee('ASIGNACIÓN DE TAREA')
+            ->assertSee('Sara Cano · Juridica')->assertSee('Andrés Ruiz · Usuario')
+            ->assertSee('Revisión jurídica')->assertSee('Crítico')
+            ->assertDontSee('audit_version')->assertDontSee('event_type')->assertDontSee('task_assigned')
+            ->assertDontSee('{id')->assertDontSee('https://', false);
+    }
+
     public function test_self_assignment_and_runtime_task_assignment_distinguish_actor_and_responsible(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-01 10:00:00', 'America/Bogota'));
@@ -169,6 +194,13 @@ class CaseAuditTrailTest extends TestCase
         $this->assertStringContainsString('días hábiles', $evento->metadata['tiempo_atencion']);
         $this->assertGreaterThanOrEqual(0, $evento->metadata['ans_restante']);
         $this->assertNull($evento->metadata['retraso_dias']);
+
+        $this->actingAs($juridica)->get(route('historial.exportar.pdf', ['caso_id' => $caso->id]))
+            ->assertOk()->assertSee('TAREA COMPLETADA')->assertSee('Preparar respuesta')
+            ->assertSee('Asignada:')->assertSee('Completada:')
+            ->assertSee('Tiempo de atención:')->assertSee('Resultado:')
+            ->assertSee('Observación:')->assertSee('Respuesta elaborada correctamente')
+            ->assertDontSee('event_type')->assertDontSee('task_completed');
     }
 
     public function test_late_signature_and_finalization_record_delay_and_complete_snapshots(): void

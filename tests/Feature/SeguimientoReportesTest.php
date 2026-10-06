@@ -259,6 +259,35 @@ class SeguimientoReportesTest extends TestCase
         $this->assertStringContainsString('Responsable', $hojas['responsables']);
     }
 
+    public function test_exports_include_case_subject_and_control_empty_subjects(): void
+    {
+        $consultor = $this->user('Consultor', 'Consultora asunto');
+        $conAsunto = $this->caso($consultor, 'ASUNTO-UNO', ['descripcion' => 'Revisión contractual prioritaria']);
+        $sinAsunto = $this->caso($consultor, 'ASUNTO-DOS', ['descripcion' => null]);
+        $asuntoLargo = trim(str_repeat('Descripción extensa para validar ajuste de línea en impresión ', 8));
+        $this->caso($consultor, 'ASUNTO-LARGO', ['descripcion' => $asuntoLargo]);
+
+        $pdf = $this->actingAs($consultor)->get(route('seguimiento.exportar.pdf'));
+        $pdf->assertOk()
+            ->assertSee('ASUNTO')
+            ->assertSee('Revisión contractual prioritaria')
+            ->assertSee('Sin asunto registrado')
+            ->assertSee($asuntoLargo)
+            ->assertSee('TIPO / SUBTIPO')
+            ->assertSee('case-subject-value', false)
+            ->assertSee('overflow-wrap:anywhere', false)
+            ->assertSee('word-break:break-word', false);
+
+        $xlsx = $this->actingAs($consultor)->get(route('seguimiento.exportar.excel'))->assertOk()->streamedContent();
+        $hojas = $this->xlsxSheets($xlsx);
+        $this->assertXlsxXmlIsValid($hojas);
+        $this->assertStringContainsString('Asunto', $hojas['detalle']);
+        $this->assertStringContainsString('Revisión contractual prioritaria', $hojas['detalle']);
+        $this->assertStringContainsString('Sin asunto registrado', $hojas['detalle']);
+        $this->assertStringContainsString($asuntoLargo, $hojas['detalle']);
+        $this->assertMatchesRegularExpression('/Radicado.*Asunto.*Tipo.*Subtipo.*Estado.*Fecha solicitud.*Fecha límite.*Estado ANS.*Restante \/ retraso.*Responsables.*Tareas pendientes.*Tarea pendiente más antigua.*Responsable tarea.*Último movimiento/s', $hojas['detalle']);
+    }
+
     public function test_internal_sections_preserve_filters_and_offer_safe_back_navigation(): void
     {
         $consultor = $this->user('Consultor', 'Consultora');
@@ -302,7 +331,7 @@ class SeguimientoReportesTest extends TestCase
         $this->actingAs($admin)->get(route('historial.exportar.pdf', ['caso_id' => $caso->id]))
             ->assertOk()->assertSee('Historial Global del Sistema')->assertSee('Evento con trazabilidad')
             ->assertSee('event-card', false)->assertSee('institutional-watermark', false)
-            ->assertSee('data:image/png;base64,', false)->assertSee('antes')->assertDontSee('https://', false);
+            ->assertSee('data:image/png;base64,', false)->assertSee('FINALIZAR')->assertDontSee('antes')->assertDontSee('event_type')->assertDontSee('audit_version')->assertDontSee('https://', false);
     }
 
     public function test_institutional_reports_keep_header_watermark_footer_for_long_content(): void

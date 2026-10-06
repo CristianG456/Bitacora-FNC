@@ -60,6 +60,16 @@
         .event-details { margin-top:5px; padding:6px 8px; border-left:3px solid #98a2b3; border-radius:2px; background:#f6f7f8; color:#475467; }
         .event-details p { margin:2px 0; }
         .event-details strong { color:#344054; }
+        .event-details h3 { margin:0 0 4px; color:var(--brand-dark); font-size:10px; letter-spacing:.35px; }
+        .audit-ans { display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:5px; padding:5px 7px; border-left:3px solid var(--brand); background:#fff7f8; }
+        .audit-ans strong { flex-basis:100%; color:var(--brand-dark); }
+        .case-card-head span { overflow-wrap:anywhere; }
+        .case-card-identity { width:78%; padding-right:12px; }
+        .case-card-status { width:22%; text-align:right; white-space:nowrap; }
+        .case-subject, .case-type { max-width:100%; margin-top:5px; }
+        .case-subject-label, .case-type-label { display:block; margin-bottom:1px; color:var(--muted); font-size:7.5pt; font-weight:700; text-transform:uppercase; letter-spacing:.25px; }
+        .case-subject-value { display:block; max-width:100%; color:#101828; font-size:9pt; font-weight:700; line-height:1.35; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+        .case-type-value { display:block; max-width:100%; color:var(--muted); font-size:8.5pt; line-height:1.3; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
         .change-card { margin-top:4px; padding:5px 6px; border:1px solid #dfe3e8; border-radius:3px; background:#fff; }
         .metadata { margin-top:4px; }
         .meta-item { display:inline-block; max-width:100%; margin:1px 4px 1px 0; padding:2px 5px; border-radius:3px; background:#edf1f4; color:#475467; overflow-wrap:anywhere; }
