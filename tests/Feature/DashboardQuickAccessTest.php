@@ -127,7 +127,7 @@ class DashboardQuickAccessTest extends TestCase
             ->assertSee('Pendientes:')
             ->assertSee('Fuera de ANS:')
             ->assertDontSee('Promedio atención:')
-            ->assertSeeInOrder([$primero->descripcion, $ultimo->descripcion]);
+            ->assertSeeInOrder([$ultimo->descripcion, $primero->descripcion]);
         $this->assertSame($estadoInicial, $caso->fresh()->estado);
     }
 

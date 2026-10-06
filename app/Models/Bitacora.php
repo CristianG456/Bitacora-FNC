@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class Bitacora extends Model
@@ -46,6 +47,13 @@ class Bitacora extends Model
     public function usuarioAfectado()
     {
         return $this->belongsTo(User::class, 'usuario_afectado');
+    }
+
+    public function scopeRecientesPrimero(Builder $query): Builder
+    {
+        return $query
+            ->orderByDesc($this->qualifyColumn('created_at'))
+            ->orderByDesc($this->qualifyColumn('id'));
     }
 
     // ─── Helper: registro desde cualquier parte ─────────────────────

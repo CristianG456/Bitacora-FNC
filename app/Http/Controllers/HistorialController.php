@@ -63,7 +63,7 @@ class HistorialController extends Controller
 
         $query = Bitacora::with(['usuario.role'])
             ->where('caso_id', $caso->id)
-            ->latest('created_at');
+            ->recientesPrimero();
 
         // Filtro por evento
         if ($request->filled('evento')) {
@@ -96,7 +96,7 @@ class HistorialController extends Controller
      */
     public function exportarExcel(Request $request)
     {
-        $query = Bitacora::with(['caso.tipo', 'usuario.role'])->latest();
+        $query = Bitacora::with(['caso.tipo', 'usuario.role'])->recientesPrimero();
 
         if ($request->filled('caso_id')) {
             $query->where('caso_id', $request->caso_id);
@@ -173,7 +173,7 @@ class HistorialController extends Controller
      */
     public function exportarPdf(Request $request)
     {
-        $query = Bitacora::with(['caso.tipo', 'usuario.role'])->latest();
+        $query = Bitacora::with(['caso.tipo', 'usuario.role'])->recientesPrimero();
 
         if ($request->filled('caso_id')) {
             $query->where('caso_id', $request->caso_id);

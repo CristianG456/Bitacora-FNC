@@ -112,7 +112,7 @@ class Caso extends Model
 
     public function bitacoras()
     {
-        return $this->hasMany(Bitacora::class, 'caso_id');
+        return $this->hasMany(Bitacora::class, 'caso_id')->recientesPrimero();
     }
 
     public function notificaciones()

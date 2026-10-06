@@ -134,8 +134,7 @@ class DashboardController extends Controller
 
         $eventos = Bitacora::with(['usuario.role'])
             ->where('caso_id', $caso->id)
-            ->oldest('created_at')
-            ->oldest('id')
+            ->recientesPrimero()
             ->get();
         $auditSummary = app(CaseAuditService::class)->resumen($caso);
 

@@ -101,7 +101,7 @@ class CasoController extends Controller
             'tareas.usuario',
             'tareas.solicitudesCorreccion' => fn($q) => $q->with(['solicitante', 'revisora'])->latest(),
             'tareas.versiones.correctora',
-            'bitacoras' => fn($q) => $q->with('usuario.role')->latest(),
+            'bitacoras' => fn($q) => $q->with('usuario.role'),
             'mensajes' => fn($q) => $q
                 ->with(['autor', 'destinatario'])
                 ->where(function ($mensajes) use ($user) {
